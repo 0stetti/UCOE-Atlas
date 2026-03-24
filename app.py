@@ -19,7 +19,7 @@ from pathlib import Path
 # ── Config ──
 st.set_page_config(
     page_title="UCOE Atlas",
-    page_icon="🧬",
+    page_icon="dna",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -89,15 +89,14 @@ FEATURE_LABELS = {
 # ══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
-st.sidebar.image("https://img.icons8.com/color/96/dna-helix.png", width=60)
 st.sidebar.title("UCOE Atlas")
-st.sidebar.markdown("**Interactive UCOE Candidate Explorer**")
+st.sidebar.caption("Interactive UCOE Candidate Explorer")
 st.sidebar.markdown("---")
 
 page = st.sidebar.radio(
     "Navigation",
-    ["🏠 Overview", "📊 Candidate Explorer", "🔍 Candidate Detail",
-     "🗺️ PCA Explorer", "📖 Methods & Glossary", "📥 Downloads", "ℹ️ About"],
+    ["Overview", "Candidate Explorer", "Candidate Detail",
+     "PCA Explorer", "Methods & Glossary", "Downloads", "About"],
 )
 
 st.sidebar.markdown("---")
@@ -111,8 +110,8 @@ st.sidebar.markdown(
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: OVERVIEW
 # ══════════════════════════════════════════════════════════════════════════════
-if page == "🏠 Overview":
-    st.title("🧬 UCOE Atlas")
+if page == "Overview":
+    st.title("UCOE Atlas")
     st.markdown("### A Comprehensive Repository of UCOE Candidates in the Human Genome")
 
     st.markdown("""
@@ -182,8 +181,8 @@ if page == "🏠 Overview":
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: CANDIDATE EXPLORER
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "📊 Candidate Explorer":
-    st.title("📊 Candidate Explorer")
+elif page == "Candidate Explorer":
+    st.title("Candidate Explorer")
 
     # Filters
     col1, col2, col3 = st.columns(3)
@@ -236,7 +235,8 @@ elif page == "📊 Candidate Explorer":
     # Chromosome distribution
     st.markdown("---")
     st.subheader("Chromosome Distribution")
-    chrom_counts = filtered["chrom"].value_counts().sort_index()
+    chrom_order = [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY"]
+    chrom_counts = filtered["chrom"].value_counts().reindex(chrom_order).dropna().astype(int)
     fig_chrom = px.bar(
         x=chrom_counts.index, y=chrom_counts.values,
         labels={"x": "Chromosome", "y": "Candidates"},
@@ -249,8 +249,8 @@ elif page == "📊 Candidate Explorer":
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: CANDIDATE DETAIL
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "🔍 Candidate Detail":
-    st.title("🔍 Candidate Detail")
+elif page == "Candidate Detail":
+    st.title("Candidate Detail")
 
     # Selector
     options = [
@@ -267,7 +267,7 @@ elif page == "🔍 Candidate Detail":
         st.markdown(f"## {cand['label']}")
         known = cand["known_ucoe"]
         if known:
-            st.success(f"✅ Known UCOE: **{known}**")
+            st.success(f"Known UCOE: **{known}**")
         st.markdown(
             f"**{cand['chrom']}:{cand['start']:,}-{cand['end']:,}**  \n"
             f"Length: {cand['length']:,} bp | "
@@ -319,8 +319,14 @@ elif page == "🔍 Candidate Detail":
             line_color="#E74C3C", fillcolor="rgba(231,76,60,0.1)",
         ))
         fig_radar.update_layout(
-            polar=dict(radialaxis=dict(visible=True, range=[0, 1])),
-            title="Active Marks (normalized)", height=400,
+            polar=dict(
+                radialaxis=dict(visible=True, range=[0, 1]),
+                angularaxis=dict(tickfont=dict(size=12)),
+            ),
+            title="Active Marks (normalized)",
+            height=450,
+            margin=dict(l=80, r=80, t=60, b=40),
+            legend=dict(x=0.5, y=-0.15, xanchor="center", orientation="h"),
         )
         st.plotly_chart(fig_radar, use_container_width=True)
 
@@ -361,20 +367,207 @@ elif page == "🔍 Candidate Detail":
     col3.metric("GC Content", f"{cand['cpg_gc_pct']:.0f}%"
                 if cand['cpg_gc_pct'] < 100 else f"{cand['length']/cand['length']*57:.0f}%")
 
+    # ── Composite genomic figure ──
+    st.markdown("---")
+    st.subheader("Genomic Profile — Sequence, CpG & ETS Analysis")
+
+    # Parse FASTA to get sequence for this candidate
+    @st.cache_data
+    def load_fasta_sequences():
+        seqs = {}
+        fasta_path = DATA_DIR / "ucoe_sequences.fa"
+        if not fasta_path.exists():
+            return seqs
+        header = None
+        seq_lines = []
+        for line in fasta_path.read_text().splitlines():
+            if line.startswith(">"):
+                if header and seq_lines:
+                    seqs[header] = "".join(seq_lines).upper()
+                header = line[1:].split()[0]
+                seq_lines = []
+            else:
+                seq_lines.append(line.strip())
+        if header and seq_lines:
+            seqs[header] = "".join(seq_lines).upper()
+        return seqs
+
+    import re as _re
+
+    fasta_seqs = load_fasta_sequences()
+
+    # Try to find this candidate's sequence in FASTA
+    # FASTA headers may use different formats — try common patterns
+    seq_key = None
+    for key in fasta_seqs:
+        if cand["gene1"] in key and cand["gene2"] in key:
+            seq_key = key
+            break
+        if f"{cand['chrom']}:{cand['start']}-{cand['end']}" in key:
+            seq_key = key
+            break
+        if f"{cand['chrom']}_{cand['start']}_{cand['end']}" in key:
+            seq_key = key
+            break
+
+    if seq_key is None:
+        # Try matching by coordinates in header
+        for key in fasta_seqs:
+            if str(cand["start"]) in key and str(cand["end"]) in key:
+                seq_key = key
+                break
+
+    if seq_key and seq_key in fasta_seqs:
+        seq = fasta_seqs[seq_key]
+        length = len(seq)
+        positions = list(range(length))
+        window = 100
+
+        # ── ETS motifs ──
+        ets_fwd = [(m.start(), m.end(), "+", m.group()) for m in _re.finditer(r"CGGAA[GA]", seq)]
+        ets_rev = [(m.start(), m.end(), "-", m.group()) for m in _re.finditer(r"[TC]TTCCG", seq)]
+        ets_all = sorted(ets_fwd + ets_rev, key=lambda x: x[0])
+
+        # ── GC content (sliding window) ──
+        gc_pos, gc_vals = [], []
+        for i in range(0, length - window + 1, window // 2):
+            w = seq[i:i + window]
+            gc_pos.append(i + window // 2)
+            gc_vals.append((w.count("G") + w.count("C")) / len(w) * 100)
+
+        # ── CpG density (sliding window) ──
+        cpg_pos, cpg_vals = [], []
+        for i in range(0, length - window + 1, window // 2):
+            w = seq[i:i + window]
+            cpg_pos.append(i + window // 2)
+            cpg_vals.append(w.count("CG"))
+
+        # ── ETS density (window 200bp) ──
+        ets_w = 200
+        ets_dens_pos, ets_dens_vals = [], []
+        for i in range(0, length - ets_w + 1, ets_w // 2):
+            c = sum(1 for s, e, _, _ in ets_all if s >= i and s < i + ets_w)
+            ets_dens_pos.append(i + ets_w // 2)
+            ets_dens_vals.append(c)
+
+        # ── Build interactive plotly figure ──
+        fig_comp = make_subplots(
+            rows=4, cols=1, shared_xaxes=True,
+            row_heights=[0.35, 0.25, 0.15, 0.25],
+            vertical_spacing=0.04,
+            subplot_titles=(
+                f"GC Content & CpG Density — {cand['label']}",
+                "CpG Island Coverage",
+                "ETS Motif Density (window = 200 bp)",
+                "ETS Motif Positions",
+            ),
+        )
+
+        # Panel 1: GC + CpG density
+        fig_comp.add_trace(
+            go.Scatter(x=gc_pos, y=gc_vals, mode="lines", name="GC %",
+                       line=dict(color="#00897B", width=1.5),
+                       fill="tozeroy", fillcolor="rgba(0,137,123,0.15)"),
+            row=1, col=1,
+        )
+        fig_comp.add_trace(
+            go.Bar(x=cpg_pos, y=cpg_vals, name="CpG count/window",
+                   marker_color="rgba(255,143,0,0.5)", width=window * 0.4),
+            row=1, col=1,
+        )
+        fig_comp.add_hline(y=50, line_dash="dash", line_color="gray",
+                           opacity=0.5, row=1, col=1)
+        fig_comp.update_yaxes(title_text="GC % / CpG count", row=1, col=1)
+
+        # Panel 2: CpG island rectangle
+        cpg_cov = cand["cpg_overlap_fraction"]
+        cpg_end = int(length * cpg_cov)
+        fig_comp.add_trace(
+            go.Bar(x=[cpg_end / 2], y=[1], width=[cpg_end], name="CpG Island",
+                   marker_color="rgba(129,199,132,0.7)",
+                   text=[f"CpG Island ({cpg_cov*100:.1f}% coverage)"],
+                   textposition="inside", textfont=dict(size=11, color="darkgreen")),
+            row=2, col=1,
+        )
+        fig_comp.update_yaxes(visible=False, row=2, col=1)
+        fig_comp.update_yaxes(range=[0, 1.5], row=2, col=1)
+
+        # Panel 3: ETS density
+        fig_comp.add_trace(
+            go.Bar(x=ets_dens_pos, y=ets_dens_vals, name="ETS motifs/window",
+                   marker_color="rgba(231,76,60,0.7)", width=100),
+            row=3, col=1,
+        )
+        fig_comp.update_yaxes(title_text="ETS / 200bp", row=3, col=1)
+
+        # Panel 4: ETS motif positions as markers
+        for i, (s, e, strand, motif_seq) in enumerate(ets_all):
+            color = "#E74C3C" if strand == "+" else "#9B59B6"
+            symbol = "triangle-up" if strand == "+" else "triangle-down"
+            fig_comp.add_trace(
+                go.Scatter(
+                    x=[s], y=[0.5 if strand == "+" else -0.5],
+                    mode="markers+text",
+                    marker=dict(size=12, color=color, symbol=symbol),
+                    text=[f"#{i+1} {motif_seq}"],
+                    textposition="top center" if strand == "+" else "bottom center",
+                    textfont=dict(size=9),
+                    name=f"ETS #{i+1} ({strand})",
+                    showlegend=False,
+                ),
+                row=4, col=1,
+            )
+
+        # Gene arrows as annotations
+        fig_comp.add_annotation(
+            x=length * 0.75, y=1.2, text=f"→ {cand['gene1']}", showarrow=False,
+            font=dict(size=12, color="#2E86C1", family="Arial Black"),
+            row=4, col=1,
+        )
+        fig_comp.add_annotation(
+            x=length * 0.25, y=-1.2, text=f"← {cand['gene2']}", showarrow=False,
+            font=dict(size=12, color="#E67E22", family="Arial Black"),
+            row=4, col=1,
+        )
+
+        fig_comp.update_yaxes(range=[-2, 2], visible=False, row=4, col=1)
+        fig_comp.update_xaxes(title_text=f"Position in {cand['label']} (bp)", row=4, col=1)
+
+        fig_comp.update_layout(
+            height=700, showlegend=False,
+            margin=dict(l=60, r=30, t=40, b=40),
+        )
+
+        st.plotly_chart(fig_comp, use_container_width=True)
+
+        # ETS summary table
+        if ets_all:
+            st.markdown(f"**{len(ets_all)} ETS motifs** found ({len(ets_all)/length*1000:.1f} motifs/kb)")
+            ets_df = pd.DataFrame([
+                {"#": i+1, "Position": s, "Strand": strand, "Motif": motif_seq,
+                 "Abs. Position": f"{cand['chrom']}:{cand['start']+s}"}
+                for i, (s, e, strand, motif_seq) in enumerate(ets_all)
+            ])
+            st.dataframe(ets_df, use_container_width=True, hide_index=True)
+        else:
+            st.info("No ETS motifs (CGGAA[GA]) found in this candidate.")
+    else:
+        st.warning("Sequence not available for this candidate. FASTA header not matched.")
+
     # UCSC link
     st.markdown("---")
     ucsc_url = (
         f"https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&"
         f"position={cand['chrom']}%3A{cand['start']}-{cand['end']}"
     )
-    st.markdown(f"🔗 [View in UCSC Genome Browser]({ucsc_url})")
+    st.markdown(f"[View in UCSC Genome Browser]({ucsc_url})")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: PCA EXPLORER
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "🗺️ PCA Explorer":
-    st.title("🗺️ PCA Explorer — Epigenomic Space")
+elif page == "PCA Explorer":
+    st.title("PCA Explorer — Epigenomic Space")
 
     from sklearn.decomposition import PCA
     from sklearn.preprocessing import StandardScaler
@@ -455,8 +648,8 @@ elif page == "🗺️ PCA Explorer":
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: METHODS & GLOSSARY
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "📖 Methods & Glossary":
-    st.title("📖 Methods & Glossary")
+elif page == "Methods & Glossary":
+    st.title("Methods & Glossary")
 
     tab_epi, tab_metrics, tab_math, tab_filters = st.tabs([
         "Epigenomic Marks", "Ranking Metrics", "Mathematical Formulas", "Filter Criteria",
@@ -777,8 +970,8 @@ elif page == "📖 Methods & Glossary":
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: DOWNLOADS
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "📥 Downloads":
-    st.title("📥 Downloads")
+elif page == "Downloads":
+    st.title("Downloads")
 
     st.markdown("""
     All data generated by the UCOE discovery pipeline is available for download below.
@@ -831,8 +1024,8 @@ elif page == "📥 Downloads":
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: ABOUT
 # ══════════════════════════════════════════════════════════════════════════════
-elif page == "ℹ️ About":
-    st.title("ℹ️ About UCOE Atlas")
+elif page == "About":
+    st.title("About UCOE Atlas")
 
     st.markdown("""
     ### What are UCOEs?
