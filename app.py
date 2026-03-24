@@ -100,10 +100,9 @@ page = st.sidebar.radio(
 )
 
 st.sidebar.markdown("---")
-st.sidebar.markdown(
-    "Developed by **Elton R. Ostetti**  \n"
-    "USP / Instituto Butantan  \n"
-    "Supervisor: Prof. Dr. Ana Maria Moro"
+st.sidebar.caption(
+    "E.R. Ostetti · A.M. Moro · T.M. Manieri  \n"
+    "USP / Instituto Butantan"
 )
 
 
@@ -480,13 +479,47 @@ elif page == "Candidate Detail":
                            fill="tozeroy", fillcolor="rgba(33,150,243,0.15)"),
                 row=current_row, col=1,
             )
-            fig_comp.add_hline(y=0, line_dash="dash", line_color="gray",
-                               opacity=0.4, row=current_row, col=1)
+            # Reference threshold lines (Pollard 2010, Cooper 2005, Kircher 2014, Bejerano 2004)
+            thresholds = [
+                (3.0, "Exceptional (p<0.001)", "#B71C1C", "dot"),
+                (2.0, "Strong — exon-level (p<0.01)", "#E65100", "dot"),
+                (1.0, "Significant (p<0.1)", "#F9A825", "dot"),
+                (0.0, "Neutral", "#9E9E9E", "dash"),
+                (-1.0, "Accelerated (p<0.1)", "#1565C0", "dot"),
+            ]
+            for y_val, label, color, dash in thresholds:
+                fig_comp.add_hline(
+                    y=y_val, line_dash=dash, line_color=color,
+                    opacity=0.5, row=current_row, col=1,
+                    annotation_text=label, annotation_position="right",
+                    annotation_font=dict(size=9, color=color),
+                )
+
+            # Background shading for conservation zones
+            y_max = float(np.nanmax(phylop_smooth)) + 0.5
+            y_min = float(np.nanmin(phylop_smooth)) - 0.5
+            # Exceptional (>3)
+            fig_comp.add_hrect(y0=3.0, y1=max(y_max, 3.5),
+                               fillcolor="rgba(183,28,28,0.06)", line_width=0,
+                               row=current_row, col=1)
+            # Strong (2-3)
+            fig_comp.add_hrect(y0=2.0, y1=3.0,
+                               fillcolor="rgba(230,81,0,0.05)", line_width=0,
+                               row=current_row, col=1)
+            # Significant (1-2)
+            fig_comp.add_hrect(y0=1.0, y1=2.0,
+                               fillcolor="rgba(249,168,37,0.05)", line_width=0,
+                               row=current_row, col=1)
+            # Accelerated (<-1)
+            fig_comp.add_hrect(y0=min(y_min, -1.5), y1=-1.0,
+                               fillcolor="rgba(21,101,192,0.06)", line_width=0,
+                               row=current_row, col=1)
+
             # Highlight ETS motifs
             for s, e, strand, mseq in ets_all:
                 fig_comp.add_vrect(x0=s, x1=e, fillcolor="rgba(255,215,0,0.4)",
                                    line_width=0, row=current_row, col=1)
-            fig_comp.update_yaxes(title_text="PhyloP", row=current_row, col=1)
+            fig_comp.update_yaxes(title_text="PhyloP (100 vertebrates)", row=current_row, col=1)
             current_row += 1
 
         # ── Panel: GC + CpG ──
@@ -1121,11 +1154,13 @@ elif page == "About":
 
     *Manuscript in preparation.*
 
-    Ostetti, E.R.S.; Moro, A.M. (2026). Computational identification and
+    Ostetti, E.R.S.; Manieri, T.M.; Moro, A.M. (2026). Computational identification and
     characterization of UCOE candidates in the human genome.
-
-    ### Contact
-
-    - **Elton Roger Ostetti** — PhD Student, University of São Paulo / Instituto Butantan
-    - **Prof. Dr. Ana Maria Moro** — Supervisor, Biopharmaceuticals Laboratory, Instituto Butantan
     """)
+
+    st.markdown("---")
+    st.caption(
+        "Elton R. Ostetti — PhD Student, University of São Paulo / Instituto Butantan  \n"
+        "Tânia M. Manieri — Co-supervisor, Instituto Butantan  \n"
+        "Ana M. Moro — Supervisor, Biopharmaceuticals Laboratory, Instituto Butantan"
+    )
