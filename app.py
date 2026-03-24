@@ -37,12 +37,15 @@ def load_data():
 @st.cache_data
 def load_structural():
     try:
-        return pd.read_csv(DATA_DIR / "all_groups_structural.tsv", sep="\t")
+        cand = pd.read_csv(DATA_DIR / "candidates_structural.tsv", sep="\t")
+        known = pd.read_csv(DATA_DIR / "known_ucoes_structural.tsv", sep="\t")
+        ctrl = pd.read_csv(DATA_DIR / "controls_structural.tsv", sep="\t")
+        return cand, known, ctrl
     except FileNotFoundError:
-        return None
+        return None, None, None
 
 scored, ref = load_data()
-structural = load_structural()
+struct_cand, struct_known, struct_ctrl = load_structural()
 
 # Add computed columns
 scored["length"] = scored["end"] - scored["start"]
@@ -251,12 +254,25 @@ elif page == "Candidate Explorer":
 elif page == "Candidate Detail":
     st.title("Candidate Detail")
 
-    # Selector
-    options = [
-        f"#{int(r['composite_rank'])} — {r['label']} ({r['chrom']})"
-        for _, r in scored.sort_values("composite_rank").iterrows()
-    ]
-    selected = st.selectbox("Select candidate", options)
+    # Selector — known UCOEs first, then all candidates
+    sorted_scored = scored.sort_values("composite_rank")
+    options = []
+    for _, r in sorted_scored.iterrows():
+        tag = " [Known UCOE]" if r["known_ucoe"] else ""
+        options.append(f"#{int(r['composite_rank'])} — {r['label']} ({r['chrom']}){tag}")
+
+    # Move known UCOEs to top of list
+    known_options = [o for o in options if "[Known UCOE]" in o]
+    other_options = [o for o in options if "[Known UCOE]" not in o]
+    options_sorted = known_options + ["---"] + other_options
+
+    selected = st.selectbox("Select candidate", options_sorted,
+                            help="Known UCOEs are listed first for reference")
+
+    if selected == "---":
+        st.info("Select a candidate from the list.")
+        st.stop()
+
     rank = int(selected.split("#")[1].split(" ")[0])
     cand = scored[scored["composite_rank"] == rank].iloc[0]
 
@@ -365,6 +381,112 @@ elif page == "Candidate Detail":
     col2.metric("CpG Obs/Exp", f"{cand['cpg_obs_exp']:.1f}")
     col3.metric("GC Content", f"{cand['cpg_gc_pct']:.0f}%"
                 if cand['cpg_gc_pct'] < 100 else f"{cand['length']/cand['length']*57:.0f}%")
+
+    # ── Dinucleotide Composition ──
+    st.markdown("---")
+    st.subheader("Dinucleotide Composition & Biophysical Properties")
+
+    if struct_cand is not None:
+        # Find this candidate in structural data
+        struct_row = None
+        for _, sr in struct_cand.iterrows():
+            h = str(sr.get("header", ""))
+            if cand["gene1"] in h and cand["gene2"] in h:
+                struct_row = sr
+                break
+
+        if struct_row is not None:
+            # Key metrics
+            col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+            col_s1.metric("WW Fraction", f"{struct_row['ww_fraction']:.3f}",
+                          delta=f"{(struct_row['ww_fraction'] - 0.154) / 0.154 * 100:+.0f}% vs controls",
+                          help="AA+AT+TA+TT proportion. Controls median = 0.154")
+            col_s2.metric("SS Fraction", f"{struct_row['ss_fraction']:.3f}",
+                          delta=f"{(struct_row['ss_fraction'] - 0.475) / 0.475 * 100:+.0f}% vs controls",
+                          delta_color="inverse",
+                          help="CC+CG+GC+GG proportion. Controls median = 0.475")
+            col_s3.metric("Dinuc. Entropy", f"{struct_row['dinuc_entropy']:.3f}",
+                          help="Shannon entropy of 16-dinucleotide spectrum. Higher = more diverse")
+            col_s4.metric("Nucleosome Score", f"{struct_row['nuc_score_mean']:.4f}",
+                          help="Mean nucleosome formation propensity. Lower = less favorable for nucleosomes")
+
+            col_s5, col_s6, col_s7, col_s8 = st.columns(4)
+            col_s5.metric("Flexibility (Brukner)", f"{struct_row['flexibility_mean']:.4f}")
+            col_s6.metric("Stiffness", f"{struct_row['stiffness_mean']:.3f}")
+            col_s7.metric("GC Content", f"{struct_row['gc_content']*100:.1f}%")
+            col_s8.metric("CpG Obs/Exp", f"{struct_row['cpg_obs_exp']:.2f}")
+
+            # Dinucleotide spectrum bar chart
+            dinuc_cols = [f"dinuc_{d}" for d in
+                          ["AA", "AC", "AG", "AT", "CA", "CC", "CG", "CT",
+                           "GA", "GC", "GG", "GT", "TA", "TC", "TG", "TT"]]
+            dinuc_labels = [d.replace("dinuc_", "") for d in dinuc_cols]
+
+            vals_this = [struct_row[c] for c in dinuc_cols]
+
+            # Get control medians
+            ctrl_medians = None
+            if struct_ctrl is not None and len(struct_ctrl) > 0:
+                ctrl_medians = [struct_ctrl[c].median() for c in dinuc_cols]
+
+            # Get known UCOEs mean
+            known_means = None
+            if struct_known is not None and len(struct_known) > 0:
+                known_means = [struct_known[c].mean() for c in dinuc_cols]
+
+            # Color by class: WW=red, SS=blue, SW/WS=gray
+            ww = {"AA", "AT", "TA", "TT"}
+            ss = {"CC", "CG", "GC", "GG"}
+            colors = ["#E53935" if d in ww else "#1E88E5" if d in ss else "#9E9E9E"
+                      for d in dinuc_labels]
+
+            fig_dinuc = go.Figure()
+            fig_dinuc.add_trace(go.Bar(
+                x=dinuc_labels, y=vals_this, name="This candidate",
+                marker_color=colors, opacity=0.85,
+            ))
+            if ctrl_medians:
+                fig_dinuc.add_trace(go.Scatter(
+                    x=dinuc_labels, y=ctrl_medians, mode="markers+lines",
+                    name="CpG island controls (median)",
+                    line=dict(color="#757575", width=1.5, dash="dash"),
+                    marker=dict(size=6, color="#757575"),
+                ))
+            if known_means:
+                fig_dinuc.add_trace(go.Scatter(
+                    x=dinuc_labels, y=known_means, mode="markers+lines",
+                    name="Known UCOEs (mean)",
+                    line=dict(color="#FF6F00", width=2),
+                    marker=dict(size=7, color="#FF6F00", symbol="diamond"),
+                ))
+
+            fig_dinuc.update_layout(
+                title="Dinucleotide Spectrum",
+                xaxis_title="Dinucleotide",
+                yaxis_title="Proportion",
+                height=380,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.5, xanchor="center"),
+                margin=dict(l=50, r=30, t=60, b=40),
+            )
+            # Add WW/SS annotations
+            fig_dinuc.add_annotation(x="AT", y=max(vals_this) * 1.1,
+                                     text="WW", showarrow=False,
+                                     font=dict(size=11, color="#E53935", family="Arial Black"))
+            fig_dinuc.add_annotation(x="CG", y=max(vals_this) * 1.1,
+                                     text="SS", showarrow=False,
+                                     font=dict(size=11, color="#1E88E5", family="Arial Black"))
+
+            st.plotly_chart(fig_dinuc, use_container_width=True)
+
+            st.caption(
+                "**WW** (red) = AA, AT, TA, TT — enriched in UCOE candidates, reduces nucleosome propensity. "
+                "**SS** (blue) = CC, CG, GC, GG — depleted in candidates vs generic CpG islands. "
+                "**SW/WS** (gray) = mixed dinucleotides."
+            )
+        else:
+            st.info("Structural data not available for this candidate.")
+    else:
+        st.info("Structural data files not found.")
 
     # ── Composite genomic figure ──
     st.markdown("---")
