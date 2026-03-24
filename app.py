@@ -369,17 +369,18 @@ elif page == "Candidate Detail":
 
     # ── Composite genomic figure ──
     st.markdown("---")
-    st.subheader("Genomic Profile — Sequence, CpG & ETS Analysis")
+    st.subheader("Genomic Profile")
 
-    # Parse FASTA to get sequence for this candidate
+    import re as _re
+
+    # Parse FASTA
     @st.cache_data
     def load_fasta_sequences():
         seqs = {}
         fasta_path = DATA_DIR / "ucoe_sequences.fa"
         if not fasta_path.exists():
             return seqs
-        header = None
-        seq_lines = []
+        header, seq_lines = None, []
         for line in fasta_path.read_text().splitlines():
             if line.startswith(">"):
                 if header and seq_lines:
@@ -392,167 +393,220 @@ elif page == "Candidate Detail":
             seqs[header] = "".join(seq_lines).upper()
         return seqs
 
-    import re as _re
+    # Load pre-computed conservation (top 50)
+    @st.cache_data
+    def load_conservation_top50():
+        npz_path = DATA_DIR / "conservation_top50.npz"
+        if npz_path.exists():
+            return dict(np.load(npz_path, allow_pickle=True))
+        return {}
 
     fasta_seqs = load_fasta_sequences()
+    conservation_data = load_conservation_top50()
 
-    # Try to find this candidate's sequence in FASTA
-    # FASTA headers may use different formats — try common patterns
+    # Find sequence
     seq_key = None
     for key in fasta_seqs:
         if cand["gene1"] in key and cand["gene2"] in key:
             seq_key = key
             break
-        if f"{cand['chrom']}:{cand['start']}-{cand['end']}" in key:
+        if str(cand["start"]) in key and str(cand["end"]) in key:
             seq_key = key
             break
-        if f"{cand['chrom']}_{cand['start']}_{cand['end']}" in key:
-            seq_key = key
-            break
-
-    if seq_key is None:
-        # Try matching by coordinates in header
-        for key in fasta_seqs:
-            if str(cand["start"]) in key and str(cand["end"]) in key:
-                seq_key = key
-                break
 
     if seq_key and seq_key in fasta_seqs:
         seq = fasta_seqs[seq_key]
         length = len(seq)
-        positions = list(range(length))
         window = 100
 
-        # ── ETS motifs ──
+        # ETS motifs
         ets_fwd = [(m.start(), m.end(), "+", m.group()) for m in _re.finditer(r"CGGAA[GA]", seq)]
         ets_rev = [(m.start(), m.end(), "-", m.group()) for m in _re.finditer(r"[TC]TTCCG", seq)]
         ets_all = sorted(ets_fwd + ets_rev, key=lambda x: x[0])
 
-        # ── GC content (sliding window) ──
+        # GC content
         gc_pos, gc_vals = [], []
         for i in range(0, length - window + 1, window // 2):
             w = seq[i:i + window]
             gc_pos.append(i + window // 2)
             gc_vals.append((w.count("G") + w.count("C")) / len(w) * 100)
 
-        # ── CpG density (sliding window) ──
+        # CpG density
         cpg_pos, cpg_vals = [], []
         for i in range(0, length - window + 1, window // 2):
-            w = seq[i:i + window]
             cpg_pos.append(i + window // 2)
-            cpg_vals.append(w.count("CG"))
+            cpg_vals.append(seq[i:i + window].count("CG"))
 
-        # ── ETS density (window 200bp) ──
-        ets_w = 200
+        # ETS density
         ets_dens_pos, ets_dens_vals = [], []
-        for i in range(0, length - ets_w + 1, ets_w // 2):
-            c = sum(1 for s, e, _, _ in ets_all if s >= i and s < i + ets_w)
-            ets_dens_pos.append(i + ets_w // 2)
-            ets_dens_vals.append(c)
+        for i in range(0, length - 200 + 1, 100):
+            ets_dens_pos.append(i + 100)
+            ets_dens_vals.append(sum(1 for s, *_ in ets_all if i <= s < i + 200))
 
-        # ── Build interactive plotly figure ──
+        # Check for conservation data
+        cons_key = f"{cand['gene1']}_{cand['gene2']}"
+        has_conservation = cons_key in conservation_data
+        phylop_arr = conservation_data.get(cons_key, None)
+
+        # Determine number of rows
+        n_rows = 5 if has_conservation else 4
+        row_heights = [0.3, 0.25, 0.1, 0.15, 0.2] if has_conservation else [0.3, 0.25, 0.15, 0.3]
+        titles = []
+        if has_conservation:
+            titles = ["PhyloP Conservation (100 vertebrates)", "GC Content & CpG Density",
+                      "CpG Island", "ETS Motif Density", "Gene Structure & ETS Motifs"]
+        else:
+            titles = ["GC Content & CpG Density", "CpG Island",
+                      "ETS Motif Density", "Gene Structure & ETS Motifs"]
+
         fig_comp = make_subplots(
-            rows=4, cols=1, shared_xaxes=True,
-            row_heights=[0.35, 0.25, 0.15, 0.25],
-            vertical_spacing=0.04,
-            subplot_titles=(
-                f"GC Content & CpG Density — {cand['label']}",
-                "CpG Island Coverage",
-                "ETS Motif Density (window = 200 bp)",
-                "ETS Motif Positions",
-            ),
+            rows=n_rows, cols=1, shared_xaxes=True,
+            row_heights=row_heights, vertical_spacing=0.03,
+            subplot_titles=titles,
         )
 
-        # Panel 1: GC + CpG density
+        current_row = 1
+
+        # ── Panel: PhyloP (if available) ──
+        if has_conservation:
+            x_cons = list(range(len(phylop_arr)))
+            # Smooth for display
+            from scipy.ndimage import uniform_filter1d
+            phylop_smooth = uniform_filter1d(np.nan_to_num(phylop_arr, nan=0.0), size=20)
+
+            fig_comp.add_trace(
+                go.Scatter(x=x_cons, y=phylop_smooth, mode="lines",
+                           name="PhyloP", line=dict(color="#2196F3", width=1),
+                           fill="tozeroy", fillcolor="rgba(33,150,243,0.15)"),
+                row=current_row, col=1,
+            )
+            fig_comp.add_hline(y=0, line_dash="dash", line_color="gray",
+                               opacity=0.4, row=current_row, col=1)
+            # Highlight ETS motifs
+            for s, e, strand, mseq in ets_all:
+                fig_comp.add_vrect(x0=s, x1=e, fillcolor="rgba(255,215,0,0.4)",
+                                   line_width=0, row=current_row, col=1)
+            fig_comp.update_yaxes(title_text="PhyloP", row=current_row, col=1)
+            current_row += 1
+
+        # ── Panel: GC + CpG ──
         fig_comp.add_trace(
             go.Scatter(x=gc_pos, y=gc_vals, mode="lines", name="GC %",
                        line=dict(color="#00897B", width=1.5),
-                       fill="tozeroy", fillcolor="rgba(0,137,123,0.15)"),
-            row=1, col=1,
+                       fill="tozeroy", fillcolor="rgba(0,137,123,0.12)"),
+            row=current_row, col=1,
         )
         fig_comp.add_trace(
-            go.Bar(x=cpg_pos, y=cpg_vals, name="CpG count/window",
-                   marker_color="rgba(255,143,0,0.5)", width=window * 0.4),
-            row=1, col=1,
+            go.Bar(x=cpg_pos, y=[v * 3 for v in cpg_vals], name="CpG count (scaled)",
+                   marker_color="rgba(255,143,0,0.4)", width=window * 0.4),
+            row=current_row, col=1,
         )
-        fig_comp.add_hline(y=50, line_dash="dash", line_color="gray",
-                           opacity=0.5, row=1, col=1)
-        fig_comp.update_yaxes(title_text="GC % / CpG count", row=1, col=1)
+        fig_comp.add_hline(y=50, line_dash="dot", line_color="gray",
+                           opacity=0.4, row=current_row, col=1)
+        fig_comp.update_yaxes(title_text="GC %", row=current_row, col=1)
+        current_row += 1
 
-        # Panel 2: CpG island rectangle
+        # ── Panel: CpG Island ──
         cpg_cov = cand["cpg_overlap_fraction"]
         cpg_end = int(length * cpg_cov)
-        fig_comp.add_trace(
-            go.Bar(x=[cpg_end / 2], y=[1], width=[cpg_end], name="CpG Island",
-                   marker_color="rgba(129,199,132,0.7)",
-                   text=[f"CpG Island ({cpg_cov*100:.1f}% coverage)"],
-                   textposition="inside", textfont=dict(size=11, color="darkgreen")),
-            row=2, col=1,
+        fig_comp.add_shape(
+            type="rect", x0=0, x1=cpg_end, y0=0.1, y1=0.9,
+            fillcolor="rgba(129,199,132,0.6)", line=dict(color="#388E3C", width=1.5),
+            row=current_row, col=1,
         )
-        fig_comp.update_yaxes(visible=False, row=2, col=1)
-        fig_comp.update_yaxes(range=[0, 1.5], row=2, col=1)
-
-        # Panel 3: ETS density
-        fig_comp.add_trace(
-            go.Bar(x=ets_dens_pos, y=ets_dens_vals, name="ETS motifs/window",
-                   marker_color="rgba(231,76,60,0.7)", width=100),
-            row=3, col=1,
+        fig_comp.add_annotation(
+            x=cpg_end / 2, y=0.5,
+            text=f"CpG Island — {cpg_cov*100:.1f}% coverage (obs/exp = {cand['cpg_obs_exp']:.1f})",
+            showarrow=False, font=dict(size=11, color="#1B5E20"),
+            row=current_row, col=1,
         )
-        fig_comp.update_yaxes(title_text="ETS / 200bp", row=3, col=1)
+        fig_comp.update_yaxes(visible=False, range=[0, 1], row=current_row, col=1)
+        current_row += 1
 
-        # Panel 4: ETS motif positions as markers
+        # ── Panel: ETS density ──
+        fig_comp.add_trace(
+            go.Bar(x=ets_dens_pos, y=ets_dens_vals, name="ETS/window",
+                   marker_color="rgba(231,76,60,0.6)", width=80),
+            row=current_row, col=1,
+        )
+        fig_comp.update_yaxes(title_text="ETS / 200bp", row=current_row, col=1)
+        current_row += 1
+
+        # ── Panel: Gene structure + ETS positions ──
+        # Gene1 arrow (+ strand, right)
+        fig_comp.add_shape(
+            type="line", x0=length * 0.4, x1=length * 0.95, y0=0.6, y1=0.6,
+            line=dict(color="#2E86C1", width=6),
+            row=current_row, col=1,
+        )
+        fig_comp.add_annotation(
+            x=length * 0.7, y=0.85,
+            text=f"<b><i>{cand['gene1']}</i></b> →",
+            showarrow=False, font=dict(size=12, color="#2E86C1"),
+            row=current_row, col=1,
+        )
+        # Gene2 arrow (- strand, left)
+        fig_comp.add_shape(
+            type="line", x0=length * 0.05, x1=length * 0.6, y0=-0.6, y1=-0.6,
+            line=dict(color="#E67E22", width=6),
+            row=current_row, col=1,
+        )
+        fig_comp.add_annotation(
+            x=length * 0.3, y=-0.85,
+            text=f"← <b><i>{cand['gene2']}</i></b>",
+            showarrow=False, font=dict(size=12, color="#E67E22"),
+            row=current_row, col=1,
+        )
+
+        # ETS motifs as markers
         for i, (s, e, strand, motif_seq) in enumerate(ets_all):
-            color = "#E74C3C" if strand == "+" else "#9B59B6"
+            y_pos = 0.15 if strand == "+" else -0.15
+            color = "#C62828" if strand == "+" else "#6A1B9A"
             symbol = "triangle-up" if strand == "+" else "triangle-down"
             fig_comp.add_trace(
                 go.Scatter(
-                    x=[s], y=[0.5 if strand == "+" else -0.5],
-                    mode="markers+text",
-                    marker=dict(size=12, color=color, symbol=symbol),
-                    text=[f"#{i+1} {motif_seq}"],
-                    textposition="top center" if strand == "+" else "bottom center",
-                    textfont=dict(size=9),
-                    name=f"ETS #{i+1} ({strand})",
+                    x=[s], y=[y_pos], mode="markers",
+                    marker=dict(size=10, color=color, symbol=symbol,
+                                line=dict(width=1, color="white")),
+                    hovertext=f"ETS #{i+1} ({strand})<br>{motif_seq}<br>pos {s}",
+                    hoverinfo="text",
                     showlegend=False,
                 ),
-                row=4, col=1,
+                row=current_row, col=1,
+            )
+            # Label only if enough space
+            fig_comp.add_annotation(
+                x=s, y=y_pos + (0.25 if strand == "+" else -0.25),
+                text=f"<b>#{i+1}</b>", showarrow=False,
+                font=dict(size=8, color=color),
+                row=current_row, col=1,
             )
 
-        # Gene arrows as annotations
-        fig_comp.add_annotation(
-            x=length * 0.75, y=1.2, text=f"→ {cand['gene1']}", showarrow=False,
-            font=dict(size=12, color="#2E86C1", family="Arial Black"),
-            row=4, col=1,
+        fig_comp.update_yaxes(range=[-1.3, 1.3], visible=False, row=current_row, col=1)
+        fig_comp.update_xaxes(
+            title_text=f"Position in {cand['label']} (bp)",
+            row=current_row, col=1,
         )
-        fig_comp.add_annotation(
-            x=length * 0.25, y=-1.2, text=f"← {cand['gene2']}", showarrow=False,
-            font=dict(size=12, color="#E67E22", family="Arial Black"),
-            row=4, col=1,
-        )
-
-        fig_comp.update_yaxes(range=[-2, 2], visible=False, row=4, col=1)
-        fig_comp.update_xaxes(title_text=f"Position in {cand['label']} (bp)", row=4, col=1)
 
         fig_comp.update_layout(
-            height=700, showlegend=False,
-            margin=dict(l=60, r=30, t=40, b=40),
+            height=250 * n_rows, showlegend=False,
+            margin=dict(l=60, r=30, t=30, b=40),
         )
-
         st.plotly_chart(fig_comp, use_container_width=True)
 
         # ETS summary table
         if ets_all:
-            st.markdown(f"**{len(ets_all)} ETS motifs** found ({len(ets_all)/length*1000:.1f} motifs/kb)")
+            st.markdown(f"**{len(ets_all)} ETS motifs** — density: {len(ets_all)/length*1000:.1f} motifs/kb")
             ets_df = pd.DataFrame([
                 {"#": i+1, "Position": s, "Strand": strand, "Motif": motif_seq,
-                 "Abs. Position": f"{cand['chrom']}:{cand['start']+s}"}
+                 "Genomic Coord.": f"{cand['chrom']}:{cand['start']+s:,}"}
                 for i, (s, e, strand, motif_seq) in enumerate(ets_all)
             ])
             st.dataframe(ets_df, use_container_width=True, hide_index=True)
         else:
             st.info("No ETS motifs (CGGAA[GA]) found in this candidate.")
     else:
-        st.warning("Sequence not available for this candidate. FASTA header not matched.")
+        st.warning("Sequence not available for this candidate.")
 
     # UCSC link
     st.markdown("---")
