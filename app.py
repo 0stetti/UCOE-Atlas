@@ -96,7 +96,7 @@ st.sidebar.title("UCOE Atlas")
 st.sidebar.caption("Interactive UCOE Candidate Explorer")
 st.sidebar.markdown("---")
 
-page = st.sidebar.radio(
+page = st.sidebar.selectbox(
     "Navigation",
     ["Overview", "Candidate Explorer", "Candidate Detail",
      "PCA Explorer", "Methods & Glossary", "Downloads", "About"],
@@ -643,228 +643,160 @@ elif page == "Candidate Detail":
         has_conservation = cons_key in conservation_data
         phylop_arr = conservation_data.get(cons_key, None)
 
-        # Determine number of rows
-        n_rows = 5 if has_conservation else 4
-        row_heights = [0.3, 0.25, 0.1, 0.15, 0.2] if has_conservation else [0.3, 0.25, 0.15, 0.3]
-        titles = []
+        # ── Panel selector ──
+        available_panels = ["Gene Structure, ETS & NFR"]
         if has_conservation:
-            titles = ["PhyloP Conservation (100 vertebrates)", "GC Content & CpG Density",
-                      "CpG Island", "ETS Motif Density", "Gene Structure & ETS Motifs"]
+            available_panels.insert(0, "PhyloP Conservation")
+        available_panels += ["GC Content & CpG Density", "CpG Island", "ETS Motif Density"]
+
+        selected_panels = st.multiselect(
+            "Select and reorder panels",
+            available_panels,
+            default=available_panels,
+            help="Drag to reorder. Remove panels you don't need.",
+        )
+
+        if not selected_panels:
+            st.info("Select at least one panel to display.")
         else:
-            titles = ["GC Content & CpG Density", "CpG Island",
-                      "ETS Motif Density", "Gene Structure & ETS Motifs"]
+            # ── Build figure with selected panels in order ──
+            n_rows = len(selected_panels)
+            height_map = {
+                "PhyloP Conservation": 0.3,
+                "Gene Structure, ETS & NFR": 0.3,
+                "GC Content & CpG Density": 0.25,
+                "CpG Island": 0.1,
+                "ETS Motif Density": 0.15,
+            }
+            row_heights = [height_map.get(p, 0.2) for p in selected_panels]
 
-        fig_comp = make_subplots(
-            rows=n_rows, cols=1, shared_xaxes=True,
-            row_heights=row_heights, vertical_spacing=0.03,
-            subplot_titles=titles,
-        )
-
-        current_row = 1
-
-        # ── Panel: PhyloP (if available) ──
-        if has_conservation:
-            x_cons = list(range(len(phylop_arr)))
-            # Smooth for display
-            from scipy.ndimage import uniform_filter1d
-            phylop_smooth = uniform_filter1d(np.nan_to_num(phylop_arr, nan=0.0), size=20)
-
-            fig_comp.add_trace(
-                go.Scatter(x=x_cons, y=phylop_smooth, mode="lines",
-                           name="PhyloP", line=dict(color="#2196F3", width=1),
-                           fill="tozeroy", fillcolor="rgba(33,150,243,0.15)"),
-                row=current_row, col=1,
-            )
-            # Reference threshold lines (Pollard 2010, Cooper 2005, Kircher 2014, Bejerano 2004)
-            thresholds = [
-                (3.0, "Exceptional (p<0.001)", "#B71C1C", "dot"),
-                (2.0, "Strong — exon-level (p<0.01)", "#E65100", "dot"),
-                (1.0, "Significant (p<0.1)", "#F9A825", "dot"),
-                (0.0, "Neutral", "#9E9E9E", "dash"),
-                (-1.0, "Accelerated (p<0.1)", "#1565C0", "dot"),
-            ]
-            for y_val, label, color, dash in thresholds:
-                fig_comp.add_hline(
-                    y=y_val, line_dash=dash, line_color=color,
-                    opacity=0.5, row=current_row, col=1,
-                    annotation_text=label, annotation_position="right",
-                    annotation_font=dict(size=9, color=color),
-                )
-
-            # Background shading for conservation zones
-            y_max = float(np.nanmax(phylop_smooth)) + 0.5
-            y_min = float(np.nanmin(phylop_smooth)) - 0.5
-            # Exceptional (>3)
-            fig_comp.add_hrect(y0=3.0, y1=max(y_max, 3.5),
-                               fillcolor="rgba(183,28,28,0.06)", line_width=0,
-                               row=current_row, col=1)
-            # Strong (2-3)
-            fig_comp.add_hrect(y0=2.0, y1=3.0,
-                               fillcolor="rgba(230,81,0,0.05)", line_width=0,
-                               row=current_row, col=1)
-            # Significant (1-2)
-            fig_comp.add_hrect(y0=1.0, y1=2.0,
-                               fillcolor="rgba(249,168,37,0.05)", line_width=0,
-                               row=current_row, col=1)
-            # Accelerated (<-1)
-            fig_comp.add_hrect(y0=min(y_min, -1.5), y1=-1.0,
-                               fillcolor="rgba(21,101,192,0.06)", line_width=0,
-                               row=current_row, col=1)
-
-            # NFR shading on PhyloP panel
-            for nfr_s, nfr_e in nfr_regions:
-                fig_comp.add_vrect(x0=nfr_s, x1=nfr_e,
-                                   fillcolor="rgba(66,165,245,0.08)", line_width=0,
-                                   row=current_row, col=1)
-            # Highlight ETS motifs
-            for s, e, strand, mseq in ets_all:
-                fig_comp.add_vrect(x0=s, x1=e, fillcolor="rgba(255,215,0,0.4)",
-                                   line_width=0, row=current_row, col=1)
-            fig_comp.update_yaxes(title_text="PhyloP (100 vertebrates)", row=current_row, col=1)
-            current_row += 1
-
-        # ── Panel: GC + CpG ──
-        fig_comp.add_trace(
-            go.Scatter(x=gc_pos, y=gc_vals, mode="lines", name="GC %",
-                       line=dict(color="#00897B", width=1.5),
-                       fill="tozeroy", fillcolor="rgba(0,137,123,0.12)"),
-            row=current_row, col=1,
-        )
-        fig_comp.add_trace(
-            go.Bar(x=cpg_pos, y=[v * 3 for v in cpg_vals], name="CpG count (scaled)",
-                   marker_color="rgba(255,143,0,0.4)", width=window * 0.4),
-            row=current_row, col=1,
-        )
-        fig_comp.add_hline(y=50, line_dash="dot", line_color="gray",
-                           opacity=0.4, row=current_row, col=1)
-        fig_comp.update_yaxes(title_text="GC %", row=current_row, col=1)
-        current_row += 1
-
-        # ── Panel: CpG Island ──
-        cpg_cov = cand["cpg_overlap_fraction"]
-        cpg_end = int(length * cpg_cov)
-        fig_comp.add_shape(
-            type="rect", x0=0, x1=cpg_end, y0=0.1, y1=0.9,
-            fillcolor="rgba(129,199,132,0.6)", line=dict(color="#388E3C", width=1.5),
-            row=current_row, col=1,
-        )
-        fig_comp.add_annotation(
-            x=cpg_end / 2, y=0.5,
-            text=f"CpG Island — {cpg_cov*100:.1f}% coverage (obs/exp = {cand['cpg_obs_exp']:.1f})",
-            showarrow=False, font=dict(size=11, color="#1B5E20"),
-            row=current_row, col=1,
-        )
-        fig_comp.update_yaxes(visible=False, range=[0, 1], row=current_row, col=1)
-        current_row += 1
-
-        # ── Panel: ETS density ──
-        fig_comp.add_trace(
-            go.Bar(x=ets_dens_pos, y=ets_dens_vals, name="ETS/window",
-                   marker_color="rgba(231,76,60,0.6)", width=80),
-            row=current_row, col=1,
-        )
-        fig_comp.update_yaxes(title_text="ETS / 200bp", row=current_row, col=1)
-        current_row += 1
-
-        # ── Panel: Gene structure + ETS positions + NFR ──
-        # NFR regions (shaded blue)
-        for nfr_start, nfr_end in nfr_regions:
-            fig_comp.add_vrect(
-                x0=nfr_start, x1=nfr_end,
-                fillcolor="rgba(66,165,245,0.12)", line_width=0,
-                row=current_row, col=1,
-            )
-        # NFR labels
-        fig_comp.add_annotation(
-            x=(nfr_regions[0][0] + nfr_regions[0][1]) / 2, y=1.15,
-            text="<b>NFR</b>", showarrow=False,
-            font=dict(size=9, color="#1565C0"),
-            row=current_row, col=1,
-        )
-        if abs(nfr_regions[1][0] - nfr_regions[0][0]) > 100:  # only label second if not overlapping
-            fig_comp.add_annotation(
-                x=(nfr_regions[1][0] + nfr_regions[1][1]) / 2, y=1.15,
-                text="<b>NFR</b>", showarrow=False,
-                font=dict(size=9, color="#1565C0"),
-                row=current_row, col=1,
+            fig_comp = make_subplots(
+                rows=n_rows, cols=1, shared_xaxes=True,
+                row_heights=row_heights, vertical_spacing=0.03,
+                subplot_titles=selected_panels,
             )
 
-        # TSS markers
-        fig_comp.add_shape(type="line", x0=tss1, x1=tss1, y0=-1.1, y1=1.1,
-                           line=dict(color="#1565C0", width=1.5, dash="dot"),
-                           row=current_row, col=1)
-        fig_comp.add_shape(type="line", x0=tss2, x1=tss2, y0=-1.1, y1=1.1,
-                           line=dict(color="#1565C0", width=1.5, dash="dot"),
-                           row=current_row, col=1)
-        fig_comp.add_annotation(x=tss1, y=-1.2, text="TSS", showarrow=False,
-                                font=dict(size=8, color="#1565C0"), row=current_row, col=1)
-        fig_comp.add_annotation(x=tss2, y=-1.2, text="TSS", showarrow=False,
-                                font=dict(size=8, color="#1565C0"), row=current_row, col=1)
+            for panel_idx, panel_name in enumerate(selected_panels):
+                row = panel_idx + 1
 
-        # Gene1 arrow (+ strand, right)
-        fig_comp.add_shape(
-            type="line", x0=tss1, x1=length * 0.95, y0=0.6, y1=0.6,
-            line=dict(color="#2E86C1", width=6),
-            row=current_row, col=1,
-        )
-        fig_comp.add_annotation(
-            x=(tss1 + length * 0.95) / 2, y=0.85,
-            text=f"<b><i>{cand['gene1']}</i></b> →",
-            showarrow=False, font=dict(size=12, color="#2E86C1"),
-            row=current_row, col=1,
-        )
-        # Gene2 arrow (- strand, left)
-        fig_comp.add_shape(
-            type="line", x0=length * 0.05, x1=tss2, y0=-0.6, y1=-0.6,
-            line=dict(color="#E67E22", width=6),
-            row=current_row, col=1,
-        )
-        fig_comp.add_annotation(
-            x=(length * 0.05 + tss2) / 2, y=-0.85,
-            text=f"← <b><i>{cand['gene2']}</i></b>",
-            showarrow=False, font=dict(size=12, color="#E67E22"),
-            row=current_row, col=1,
-        )
+                if panel_name == "PhyloP Conservation" and has_conservation:
+                    from scipy.ndimage import uniform_filter1d
+                    phylop_smooth = uniform_filter1d(np.nan_to_num(phylop_arr, nan=0.0), size=20)
+                    fig_comp.add_trace(
+                        go.Scatter(x=list(range(len(phylop_smooth))), y=phylop_smooth, mode="lines",
+                                   name="PhyloP", line=dict(color="#2196F3", width=1),
+                                   fill="tozeroy", fillcolor="rgba(33,150,243,0.15)"),
+                        row=row, col=1)
+                    for y_val, label, color, dash in [
+                        (3.0, "Exceptional", "#B71C1C", "dot"), (2.0, "Strong", "#E65100", "dot"),
+                        (1.0, "Significant", "#F9A825", "dot"), (0.0, "Neutral", "#9E9E9E", "dash"),
+                        (-1.0, "Accelerated", "#1565C0", "dot")]:
+                        fig_comp.add_hline(y=y_val, line_dash=dash, line_color=color, opacity=0.5,
+                                           row=row, col=1, annotation_text=label,
+                                           annotation_position="right",
+                                           annotation_font=dict(size=9, color=color))
+                    y_max = float(np.nanmax(phylop_smooth)) + 0.5
+                    y_min = float(np.nanmin(phylop_smooth)) - 0.5
+                    for y0, y1, fc in [(3.0, max(y_max, 3.5), "rgba(183,28,28,0.06)"),
+                                       (2.0, 3.0, "rgba(230,81,0,0.05)"),
+                                       (1.0, 2.0, "rgba(249,168,37,0.05)"),
+                                       (min(y_min, -1.5), -1.0, "rgba(21,101,192,0.06)")]:
+                        fig_comp.add_hrect(y0=y0, y1=y1, fillcolor=fc, line_width=0, row=row, col=1)
+                    for nfr_s, nfr_e in nfr_regions:
+                        fig_comp.add_vrect(x0=nfr_s, x1=nfr_e, fillcolor="rgba(66,165,245,0.08)",
+                                           line_width=0, row=row, col=1)
+                    for s, e, strand, mseq in ets_all:
+                        fig_comp.add_vrect(x0=s, x1=e, fillcolor="rgba(255,215,0,0.4)",
+                                           line_width=0, row=row, col=1)
+                    fig_comp.update_yaxes(title_text="PhyloP", row=row, col=1)
 
-        # ETS motifs as markers (colored by NFR status)
-        for i, (s, e, strand, motif_seq) in enumerate(ets_all):
-            in_nfr = any(nfr_s <= s <= nfr_e for nfr_s, nfr_e in nfr_regions)
-            y_pos = 0.15 if strand == "+" else -0.15
-            if in_nfr:
-                color = "#1565C0"  # blue = in NFR
-                symbol = "triangle-up" if strand == "+" else "triangle-down"
-            else:
-                color = "#C62828" if strand == "+" else "#6A1B9A"
-                symbol = "triangle-up" if strand == "+" else "triangle-down"
-            fig_comp.add_trace(
-                go.Scatter(
-                    x=[s], y=[y_pos], mode="markers",
-                    marker=dict(size=10, color=color, symbol=symbol,
-                                line=dict(width=1, color="white")),
-                    hovertext=f"ETS #{i+1} ({strand})<br>{motif_seq}<br>pos {s}<br>{'IN NFR' if in_nfr else 'outside NFR'}",
-                    hoverinfo="text",
-                    showlegend=False,
-                ),
-                row=current_row, col=1,
+                elif panel_name == "GC Content & CpG Density":
+                    fig_comp.add_trace(
+                        go.Scatter(x=gc_pos, y=gc_vals, mode="lines", name="GC %",
+                                   line=dict(color="#00897B", width=1.5),
+                                   fill="tozeroy", fillcolor="rgba(0,137,123,0.12)"),
+                        row=row, col=1)
+                    fig_comp.add_trace(
+                        go.Bar(x=cpg_pos, y=[v * 3 for v in cpg_vals], name="CpG (scaled)",
+                               marker_color="rgba(255,143,0,0.4)", width=window * 0.4),
+                        row=row, col=1)
+                    fig_comp.add_hline(y=50, line_dash="dot", line_color="gray", opacity=0.4, row=row, col=1)
+                    fig_comp.update_yaxes(title_text="GC %", row=row, col=1)
+
+                elif panel_name == "CpG Island":
+                    cpg_cov = cand["cpg_overlap_fraction"]
+                    cpg_end = int(length * cpg_cov)
+                    fig_comp.add_shape(type="rect", x0=0, x1=cpg_end, y0=0.1, y1=0.9,
+                                       fillcolor="rgba(129,199,132,0.6)",
+                                       line=dict(color="#388E3C", width=1.5), row=row, col=1)
+                    fig_comp.add_annotation(x=cpg_end / 2, y=0.5,
+                                            text=f"CpG Island — {cpg_cov*100:.1f}% (obs/exp={cand['cpg_obs_exp']:.1f})",
+                                            showarrow=False, font=dict(size=11, color="#1B5E20"),
+                                            row=row, col=1)
+                    fig_comp.update_yaxes(visible=False, range=[0, 1], row=row, col=1)
+
+                elif panel_name == "ETS Motif Density":
+                    fig_comp.add_trace(
+                        go.Bar(x=ets_dens_pos, y=ets_dens_vals, name="ETS/window",
+                               marker_color="rgba(231,76,60,0.6)", width=80),
+                        row=row, col=1)
+                    fig_comp.update_yaxes(title_text="ETS / 200bp", row=row, col=1)
+
+                elif panel_name == "Gene Structure, ETS & NFR":
+                    # NFR rectangles
+                    for nfr_start, nfr_end in nfr_regions:
+                        fig_comp.add_shape(type="rect", x0=nfr_start, x1=nfr_end, y0=-1.3, y1=1.3,
+                                           fillcolor="rgba(66,165,245,0.10)",
+                                           line=dict(color="#1565C0", width=1.5, dash="dash"),
+                                           row=row, col=1)
+                        fig_comp.add_annotation(x=(nfr_start + nfr_end) / 2, y=1.25,
+                                                text="<b>NFR</b><br><span style='font-size:9px'>±200 bp</span>",
+                                                showarrow=False, font=dict(size=10, color="#1565C0"),
+                                                row=row, col=1)
+                    # TSS lines
+                    for tss_pos in [tss1, tss2]:
+                        fig_comp.add_shape(type="line", x0=tss_pos, x1=tss_pos, y0=-1.3, y1=1.3,
+                                           line=dict(color="#0D47A1", width=2), row=row, col=1)
+                        fig_comp.add_annotation(x=tss_pos, y=-1.35, text="<b>TSS</b>", showarrow=False,
+                                                font=dict(size=9, color="#0D47A1"), row=row, col=1)
+                    # Genes
+                    fig_comp.add_shape(type="line", x0=tss1, x1=length * 0.95, y0=0.6, y1=0.6,
+                                       line=dict(color="#2E86C1", width=6), row=row, col=1)
+                    fig_comp.add_annotation(x=(tss1 + length * 0.95) / 2, y=0.85,
+                                            text=f"<b><i>{cand['gene1']}</i></b> →",
+                                            showarrow=False, font=dict(size=12, color="#2E86C1"),
+                                            row=row, col=1)
+                    fig_comp.add_shape(type="line", x0=length * 0.05, x1=tss2, y0=-0.6, y1=-0.6,
+                                       line=dict(color="#E67E22", width=6), row=row, col=1)
+                    fig_comp.add_annotation(x=(length * 0.05 + tss2) / 2, y=-0.85,
+                                            text=f"← <b><i>{cand['gene2']}</i></b>",
+                                            showarrow=False, font=dict(size=12, color="#E67E22"),
+                                            row=row, col=1)
+                    # ETS motifs
+                    for i, (s, e, strand, motif_seq) in enumerate(ets_all):
+                        in_nfr = any(nfr_s <= s <= nfr_e for nfr_s, nfr_e in nfr_regions)
+                        y_pos = 0.15 if strand == "+" else -0.15
+                        color = "#1565C0" if in_nfr else ("#C62828" if strand == "+" else "#6A1B9A")
+                        symbol = "triangle-up" if strand == "+" else "triangle-down"
+                        fig_comp.add_trace(go.Scatter(
+                            x=[s], y=[y_pos], mode="markers",
+                            marker=dict(size=10, color=color, symbol=symbol,
+                                        line=dict(width=1, color="white")),
+                            hovertext=f"ETS #{i+1} ({strand})<br>{motif_seq}<br>pos {s}<br>{'IN NFR' if in_nfr else 'outside NFR'}",
+                            hoverinfo="text", showlegend=False), row=row, col=1)
+                        fig_comp.add_annotation(x=s, y=y_pos + (0.25 if strand == "+" else -0.25),
+                                                text=f"<b>#{i+1}</b>", showarrow=False,
+                                                font=dict(size=8, color=color), row=row, col=1)
+                    fig_comp.update_yaxes(range=[-1.4, 1.4], visible=False, row=row, col=1)
+
+            # X axis label on last row
+            fig_comp.update_xaxes(title_text=f"Position in {cand['label']} (bp)",
+                                  row=n_rows, col=1)
+            fig_comp.update_layout(
+                height=250 * n_rows, showlegend=False,
+                margin=dict(l=60, r=30, t=30, b=40),
             )
-            fig_comp.add_annotation(
-                x=s, y=y_pos + (0.25 if strand == "+" else -0.25),
-                text=f"<b>#{i+1}</b>", showarrow=False,
-                font=dict(size=8, color=color),
-                row=current_row, col=1,
-            )
-
-        fig_comp.update_yaxes(range=[-1.4, 1.4], visible=False, row=current_row, col=1)
-        fig_comp.update_xaxes(
-            title_text=f"Position in {cand['label']} (bp)",
-            row=current_row, col=1,
-        )
-
-        fig_comp.update_layout(
-            height=250 * n_rows, showlegend=False,
-            margin=dict(l=60, r=30, t=30, b=40),
-        )
-        st.plotly_chart(fig_comp, use_container_width=True)
+            st.plotly_chart(fig_comp, use_container_width=True)
 
         # ETS summary table with NFR info
         if ets_all:
