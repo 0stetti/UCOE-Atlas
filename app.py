@@ -382,9 +382,9 @@ elif page == "Candidate Detail":
     col3.metric("GC Content", f"{cand['cpg_gc_pct']:.0f}%"
                 if cand['cpg_gc_pct'] < 100 else f"{cand['length']/cand['length']*57:.0f}%")
 
-    # ── Dinucleotide Composition ──
+    # ── DNA Biophysical Properties ──
     st.markdown("---")
-    st.subheader("Dinucleotide Composition & Biophysical Properties")
+    st.subheader("DNA Biophysical Properties — Nucleosome Exclusion Assessment")
 
     if struct_cand is not None:
         # Find this candidate in structural data
@@ -396,93 +396,172 @@ elif page == "Candidate Detail":
                 break
 
         if struct_row is not None:
-            # Key metrics
-            col_s1, col_s2, col_s3, col_s4 = st.columns(4)
-            col_s1.metric("WW Fraction", f"{struct_row['ww_fraction']:.3f}",
-                          delta=f"{(struct_row['ww_fraction'] - 0.154) / 0.154 * 100:+.0f}% vs controls",
-                          help="AA+AT+TA+TT proportion. Controls median = 0.154")
-            col_s2.metric("SS Fraction", f"{struct_row['ss_fraction']:.3f}",
-                          delta=f"{(struct_row['ss_fraction'] - 0.475) / 0.475 * 100:+.0f}% vs controls",
-                          delta_color="inverse",
-                          help="CC+CG+GC+GG proportion. Controls median = 0.475")
-            col_s3.metric("Dinuc. Entropy", f"{struct_row['dinuc_entropy']:.3f}",
-                          help="Shannon entropy of 16-dinucleotide spectrum. Higher = more diverse")
-            col_s4.metric("Nucleosome Score", f"{struct_row['nuc_score_mean']:.4f}",
-                          help="Mean nucleosome formation propensity. Lower = less favorable for nucleosomes")
+            ww_val = struct_row['ww_fraction']
+            ss_val = struct_row['ss_fraction']
+            nuc_val = struct_row['nuc_score_mean']
+            entropy_val = struct_row['dinuc_entropy']
+            gc_val = struct_row['gc_content']
 
-            col_s5, col_s6, col_s7, col_s8 = st.columns(4)
-            col_s5.metric("Flexibility (Brukner)", f"{struct_row['flexibility_mean']:.4f}")
-            col_s6.metric("Stiffness", f"{struct_row['stiffness_mean']:.3f}")
-            col_s7.metric("GC Content", f"{struct_row['gc_content']*100:.1f}%")
-            col_s8.metric("CpG Obs/Exp", f"{struct_row['cpg_obs_exp']:.2f}")
+            # Reference values
+            ctrl_ww = 0.154  # controls median
+            ctrl_ss = 0.475
+            ucoe_ww = 0.213  # candidates median
+            ucoe_ss = 0.433
 
-            # Dinucleotide spectrum bar chart
-            dinuc_cols = [f"dinuc_{d}" for d in
-                          ["AA", "AC", "AG", "AT", "CA", "CC", "CG", "CT",
-                           "GA", "GC", "GG", "GT", "TA", "TC", "TG", "TT"]]
-            dinuc_labels = [d.replace("dinuc_", "") for d in dinuc_cols]
+            # ── Interpretation panel ──
+            st.markdown("##### Nucleosome exclusion mechanism")
+            st.markdown("""
+            UCOEs maintain open chromatin partly through **DNA composition**: sequences enriched
+            in WW dinucleotides (AA, AT, TA, TT) have lower thermodynamic affinity for histone
+            octamers, creating a **sequence-intrinsic barrier to nucleosome formation**. This is
+            independent of epigenetic marks — it is encoded in the DNA sequence itself.
+            """)
 
-            vals_this = [struct_row[c] for c in dinuc_cols]
+            # ── WW vs SS visual comparison ──
+            col_ww, col_ss = st.columns(2)
 
-            # Get control medians
-            ctrl_medians = None
-            if struct_ctrl is not None and len(struct_ctrl) > 0:
-                ctrl_medians = [struct_ctrl[c].median() for c in dinuc_cols]
+            with col_ww:
+                ww_pct_vs_ctrl = (ww_val - ctrl_ww) / ctrl_ww * 100
+                ww_status = "above" if ww_val >= ucoe_ww else "below"
+                ww_color = "#2E7D32" if ww_val >= ctrl_ww * 1.1 else "#F57F17" if ww_val >= ctrl_ww else "#C62828"
 
-            # Get known UCOEs mean
-            known_means = None
-            if struct_known is not None and len(struct_known) > 0:
-                known_means = [struct_known[c].mean() for c in dinuc_cols]
-
-            # Color by class: WW=red, SS=blue, SW/WS=gray
-            ww = {"AA", "AT", "TA", "TT"}
-            ss = {"CC", "CG", "GC", "GG"}
-            colors = ["#E53935" if d in ww else "#1E88E5" if d in ss else "#9E9E9E"
-                      for d in dinuc_labels]
-
-            fig_dinuc = go.Figure()
-            fig_dinuc.add_trace(go.Bar(
-                x=dinuc_labels, y=vals_this, name="This candidate",
-                marker_color=colors, opacity=0.85,
-            ))
-            if ctrl_medians:
-                fig_dinuc.add_trace(go.Scatter(
-                    x=dinuc_labels, y=ctrl_medians, mode="markers+lines",
-                    name="CpG island controls (median)",
-                    line=dict(color="#757575", width=1.5, dash="dash"),
-                    marker=dict(size=6, color="#757575"),
+                fig_ww = go.Figure(go.Indicator(
+                    mode="gauge+number+delta",
+                    value=ww_val,
+                    delta={"reference": ctrl_ww, "relative": True, "valueformat": ".0%",
+                           "increasing": {"color": "#2E7D32"}, "decreasing": {"color": "#C62828"}},
+                    title={"text": "WW Fraction (AA+AT+TA+TT)<br><span style='font-size:12px;color:gray'>Higher = disfavors nucleosomes</span>"},
+                    gauge={
+                        "axis": {"range": [0, 0.35], "tickvals": [0, ctrl_ww, ucoe_ww, 0.35],
+                                 "ticktext": ["0", f"Controls\n{ctrl_ww}", f"UCOE med.\n{ucoe_ww}", "0.35"]},
+                        "bar": {"color": ww_color},
+                        "steps": [
+                            {"range": [0, ctrl_ww], "color": "#FFCDD2"},
+                            {"range": [ctrl_ww, ucoe_ww], "color": "#FFF9C4"},
+                            {"range": [ucoe_ww, 0.35], "color": "#C8E6C9"},
+                        ],
+                        "threshold": {"line": {"color": "#FF6F00", "width": 3}, "value": ucoe_ww},
+                    },
+                    number={"valueformat": ".3f"},
                 ))
-            if known_means:
-                fig_dinuc.add_trace(go.Scatter(
-                    x=dinuc_labels, y=known_means, mode="markers+lines",
-                    name="Known UCOEs (mean)",
-                    line=dict(color="#FF6F00", width=2),
-                    marker=dict(size=7, color="#FF6F00", symbol="diamond"),
+                fig_ww.update_layout(height=250, margin=dict(l=30, r=30, t=80, b=20))
+                st.plotly_chart(fig_ww, use_container_width=True)
+
+            with col_ss:
+                ss_pct_vs_ctrl = (ss_val - ctrl_ss) / ctrl_ss * 100
+                ss_color = "#2E7D32" if ss_val <= ctrl_ss * 0.95 else "#F57F17" if ss_val <= ctrl_ss else "#C62828"
+
+                fig_ss = go.Figure(go.Indicator(
+                    mode="gauge+number+delta",
+                    value=ss_val,
+                    delta={"reference": ctrl_ss, "relative": True, "valueformat": ".0%",
+                           "increasing": {"color": "#C62828"}, "decreasing": {"color": "#2E7D32"}},
+                    title={"text": "SS Fraction (CC+CG+GC+GG)<br><span style='font-size:12px;color:gray'>Lower = disfavors nucleosomes</span>"},
+                    gauge={
+                        "axis": {"range": [0.25, 0.55], "tickvals": [0.25, ucoe_ss, ctrl_ss, 0.55],
+                                 "ticktext": ["0.25", f"UCOE med.\n{ucoe_ss}", f"Controls\n{ctrl_ss}", "0.55"]},
+                        "bar": {"color": ss_color},
+                        "steps": [
+                            {"range": [0.25, ucoe_ss], "color": "#C8E6C9"},
+                            {"range": [ucoe_ss, ctrl_ss], "color": "#FFF9C4"},
+                            {"range": [ctrl_ss, 0.55], "color": "#FFCDD2"},
+                        ],
+                        "threshold": {"line": {"color": "#FF6F00", "width": 3}, "value": ucoe_ss},
+                    },
+                    number={"valueformat": ".3f"},
                 ))
+                fig_ss.update_layout(height=250, margin=dict(l=30, r=30, t=80, b=20))
+                st.plotly_chart(fig_ss, use_container_width=True)
 
-            fig_dinuc.update_layout(
-                title="Dinucleotide Spectrum",
-                xaxis_title="Dinucleotide",
-                yaxis_title="Proportion",
-                height=380,
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.5, xanchor="center"),
-                margin=dict(l=50, r=30, t=60, b=40),
-            )
-            # Add WW/SS annotations
-            fig_dinuc.add_annotation(x="AT", y=max(vals_this) * 1.1,
-                                     text="WW", showarrow=False,
-                                     font=dict(size=11, color="#E53935", family="Arial Black"))
-            fig_dinuc.add_annotation(x="CG", y=max(vals_this) * 1.1,
-                                     text="SS", showarrow=False,
-                                     font=dict(size=11, color="#1E88E5", family="Arial Black"))
+            # ── Automatic interpretation ──
+            assessments = []
+            if ww_val >= ucoe_ww:
+                assessments.append(("WW enrichment", "FAVORABLE", "WW fraction is at or above the UCOE candidate median — this sequence has elevated A/T-rich dinucleotides that disfavor nucleosome wrapping."))
+            elif ww_val >= ctrl_ww:
+                assessments.append(("WW enrichment", "MODERATE", "WW fraction is above generic CpG islands but below the UCOE candidate median."))
+            else:
+                assessments.append(("WW enrichment", "LOW", "WW fraction is below generic CpG island controls — this region does not show the WW enrichment typical of UCOE candidates."))
 
-            st.plotly_chart(fig_dinuc, use_container_width=True)
+            if ss_val <= ucoe_ss:
+                assessments.append(("SS depletion", "FAVORABLE", "SS fraction is at or below the UCOE candidate median — reduced stacking energy disfavors stable nucleosome formation."))
+            elif ss_val <= ctrl_ss:
+                assessments.append(("SS depletion", "MODERATE", "SS fraction is below generic CpG islands but above the UCOE candidate median."))
+            else:
+                assessments.append(("SS depletion", "LOW", "SS fraction is above generic CpG island controls — high SS content favors nucleosome stability."))
 
-            st.caption(
-                "**WW** (red) = AA, AT, TA, TT — enriched in UCOE candidates, reduces nucleosome propensity. "
-                "**SS** (blue) = CC, CG, GC, GG — depleted in candidates vs generic CpG islands. "
-                "**SW/WS** (gray) = mixed dinucleotides."
-            )
+            if entropy_val >= 3.55:
+                assessments.append(("Compositional diversity", "FAVORABLE", f"Dinucleotide entropy ({entropy_val:.3f}) is high, indicating diverse composition that disrupts regular nucleosome positioning signals."))
+            else:
+                assessments.append(("Compositional diversity", "MODERATE", f"Dinucleotide entropy ({entropy_val:.3f}) is moderate."))
+
+            status_colors = {"FAVORABLE": "#2E7D32", "MODERATE": "#F57F17", "LOW": "#C62828"}
+
+            st.markdown("##### Assessment")
+            for criterion, status, explanation in assessments:
+                color = status_colors[status]
+                st.markdown(f"**{criterion}**: <span style='color:{color};font-weight:bold'>{status}</span> — {explanation}", unsafe_allow_html=True)
+
+            # Overall nucleosome exclusion verdict
+            n_favorable = sum(1 for _, s, _ in assessments if s == "FAVORABLE")
+            if n_favorable >= 2:
+                st.success(f"This candidate shows {n_favorable}/3 favorable biophysical properties for nucleosome exclusion — consistent with UCOE-like sequence composition.")
+            elif n_favorable >= 1:
+                st.warning(f"This candidate shows {n_favorable}/3 favorable biophysical properties — partial nucleosome exclusion signature.")
+            else:
+                st.error("This candidate does not show biophysical properties consistent with nucleosome exclusion.")
+
+            # ── Detailed metrics (expandable) ──
+            with st.expander("Detailed biophysical metrics"):
+                col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+                col_s1.metric("WW Fraction", f"{ww_val:.3f}")
+                col_s2.metric("SS Fraction", f"{ss_val:.3f}")
+                col_s3.metric("Entropy", f"{entropy_val:.3f}")
+                col_s4.metric("Nuc. Score", f"{nuc_val:.4f}")
+
+                col_s5, col_s6, col_s7, col_s8 = st.columns(4)
+                col_s5.metric("Flexibility", f"{struct_row['flexibility_mean']:.4f}")
+                col_s6.metric("Stiffness", f"{struct_row['stiffness_mean']:.3f}")
+                col_s7.metric("GC Content", f"{gc_val*100:.1f}%")
+                col_s8.metric("CpG Obs/Exp", f"{struct_row['cpg_obs_exp']:.2f}")
+
+            # ── Dinucleotide spectrum (expandable) ──
+            with st.expander("Full dinucleotide spectrum"):
+                dinuc_cols = [f"dinuc_{d}" for d in
+                              ["AA", "AC", "AG", "AT", "CA", "CC", "CG", "CT",
+                               "GA", "GC", "GG", "GT", "TA", "TC", "TG", "TT"]]
+                dinuc_labels = [d.replace("dinuc_", "") for d in dinuc_cols]
+                vals_this = [struct_row[c] for c in dinuc_cols]
+
+                ctrl_medians = [struct_ctrl[c].median() for c in dinuc_cols] if struct_ctrl is not None and len(struct_ctrl) > 0 else None
+                known_means = [struct_known[c].mean() for c in dinuc_cols] if struct_known is not None and len(struct_known) > 0 else None
+
+                ww_set = {"AA", "AT", "TA", "TT"}
+                ss_set = {"CC", "CG", "GC", "GG"}
+                colors = ["#E53935" if d in ww_set else "#1E88E5" if d in ss_set else "#9E9E9E"
+                          for d in dinuc_labels]
+
+                fig_dinuc = go.Figure()
+                fig_dinuc.add_trace(go.Bar(x=dinuc_labels, y=vals_this, name="This candidate",
+                                           marker_color=colors, opacity=0.85))
+                if ctrl_medians:
+                    fig_dinuc.add_trace(go.Scatter(x=dinuc_labels, y=ctrl_medians, mode="markers+lines",
+                                                    name="CpG island controls (median)",
+                                                    line=dict(color="#757575", width=1.5, dash="dash"),
+                                                    marker=dict(size=6, color="#757575")))
+                if known_means:
+                    fig_dinuc.add_trace(go.Scatter(x=dinuc_labels, y=known_means, mode="markers+lines",
+                                                    name="Known UCOEs (mean)",
+                                                    line=dict(color="#FF6F00", width=2),
+                                                    marker=dict(size=7, color="#FF6F00", symbol="diamond")))
+
+                fig_dinuc.update_layout(title="Dinucleotide Spectrum", xaxis_title="Dinucleotide",
+                                         yaxis_title="Proportion", height=350,
+                                         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.5, xanchor="center"),
+                                         margin=dict(l=50, r=30, t=60, b=40))
+                st.plotly_chart(fig_dinuc, use_container_width=True)
+                st.caption("**WW** (red) = AA, AT, TA, TT — disfavor nucleosomes. "
+                           "**SS** (blue) = CC, CG, GC, GG — favor nucleosomes. "
+                           "**SW/WS** (gray) = mixed.")
         else:
             st.info("Structural data not available for this candidate.")
     else:
