@@ -417,61 +417,46 @@ elif page == "Candidate Detail":
             independent of epigenetic marks — it is encoded in the DNA sequence itself.
             """)
 
-            # ── WW vs SS visual comparison ──
-            col_ww, col_ss = st.columns(2)
+            # ── WW vs SS horizontal bar comparison ──
+            fig_bio = make_subplots(
+                rows=2, cols=1, vertical_spacing=0.25,
+                subplot_titles=(
+                    "WW Fraction (AA+AT+TA+TT) — higher = disfavors nucleosomes",
+                    "SS Fraction (CC+CG+GC+GG) — lower = disfavors nucleosomes",
+                ),
+            )
 
-            with col_ww:
-                ww_pct_vs_ctrl = (ww_val - ctrl_ww) / ctrl_ww * 100
-                ww_status = "above" if ww_val >= ucoe_ww else "below"
-                ww_color = "#2E7D32" if ww_val >= ctrl_ww * 1.1 else "#F57F17" if ww_val >= ctrl_ww else "#C62828"
+            bar_height = 0.35
+            # WW bars
+            fig_bio.add_trace(go.Bar(y=["This candidate"], x=[ww_val], orientation="h",
+                                      marker_color="#E53935", name="This candidate", width=bar_height,
+                                      text=[f"{ww_val:.3f}"], textposition="outside"), row=1, col=1)
+            fig_bio.add_trace(go.Bar(y=["UCOE candidates (median)"], x=[ucoe_ww], orientation="h",
+                                      marker_color="#FF8A65", name="UCOE candidates", width=bar_height,
+                                      text=[f"{ucoe_ww:.3f}"], textposition="outside"), row=1, col=1)
+            fig_bio.add_trace(go.Bar(y=["CpG island controls"], x=[ctrl_ww], orientation="h",
+                                      marker_color="#BDBDBD", name="Controls", width=bar_height,
+                                      text=[f"{ctrl_ww:.3f}"], textposition="outside"), row=1, col=1)
 
-                fig_ww = go.Figure(go.Indicator(
-                    mode="gauge+number+delta",
-                    value=ww_val,
-                    delta={"reference": ctrl_ww, "relative": True, "valueformat": ".0%",
-                           "increasing": {"color": "#2E7D32"}, "decreasing": {"color": "#C62828"}},
-                    title={"text": "WW Fraction (AA+AT+TA+TT)<br><span style='font-size:12px;color:gray'>Higher = disfavors nucleosomes</span>"},
-                    gauge={
-                        "axis": {"range": [0, 0.35], "tickvals": [0, ctrl_ww, ucoe_ww, 0.35],
-                                 "ticktext": ["0", f"Controls\n{ctrl_ww}", f"UCOE med.\n{ucoe_ww}", "0.35"]},
-                        "bar": {"color": ww_color},
-                        "steps": [
-                            {"range": [0, ctrl_ww], "color": "#FFCDD2"},
-                            {"range": [ctrl_ww, ucoe_ww], "color": "#FFF9C4"},
-                            {"range": [ucoe_ww, 0.35], "color": "#C8E6C9"},
-                        ],
-                        "threshold": {"line": {"color": "#FF6F00", "width": 3}, "value": ucoe_ww},
-                    },
-                    number={"valueformat": ".3f"},
-                ))
-                fig_ww.update_layout(height=250, margin=dict(l=30, r=30, t=80, b=20))
-                st.plotly_chart(fig_ww, use_container_width=True)
+            # SS bars
+            fig_bio.add_trace(go.Bar(y=["This candidate"], x=[ss_val], orientation="h",
+                                      marker_color="#1E88E5", width=bar_height, showlegend=False,
+                                      text=[f"{ss_val:.3f}"], textposition="outside"), row=2, col=1)
+            fig_bio.add_trace(go.Bar(y=["UCOE candidates (median)"], x=[ucoe_ss], orientation="h",
+                                      marker_color="#64B5F6", width=bar_height, showlegend=False,
+                                      text=[f"{ucoe_ss:.3f}"], textposition="outside"), row=2, col=1)
+            fig_bio.add_trace(go.Bar(y=["CpG island controls"], x=[ctrl_ss], orientation="h",
+                                      marker_color="#BDBDBD", width=bar_height, showlegend=False,
+                                      text=[f"{ctrl_ss:.3f}"], textposition="outside"), row=2, col=1)
 
-            with col_ss:
-                ss_pct_vs_ctrl = (ss_val - ctrl_ss) / ctrl_ss * 100
-                ss_color = "#2E7D32" if ss_val <= ctrl_ss * 0.95 else "#F57F17" if ss_val <= ctrl_ss else "#C62828"
+            fig_bio.update_layout(
+                height=320, showlegend=False,
+                margin=dict(l=10, r=60, t=40, b=10),
+            )
+            fig_bio.update_xaxes(range=[0, max(ww_val, ucoe_ww, ctrl_ww) * 1.3], row=1, col=1)
+            fig_bio.update_xaxes(range=[0, max(ss_val, ucoe_ss, ctrl_ss) * 1.15], row=2, col=1)
 
-                fig_ss = go.Figure(go.Indicator(
-                    mode="gauge+number+delta",
-                    value=ss_val,
-                    delta={"reference": ctrl_ss, "relative": True, "valueformat": ".0%",
-                           "increasing": {"color": "#C62828"}, "decreasing": {"color": "#2E7D32"}},
-                    title={"text": "SS Fraction (CC+CG+GC+GG)<br><span style='font-size:12px;color:gray'>Lower = disfavors nucleosomes</span>"},
-                    gauge={
-                        "axis": {"range": [0.25, 0.55], "tickvals": [0.25, ucoe_ss, ctrl_ss, 0.55],
-                                 "ticktext": ["0.25", f"UCOE med.\n{ucoe_ss}", f"Controls\n{ctrl_ss}", "0.55"]},
-                        "bar": {"color": ss_color},
-                        "steps": [
-                            {"range": [0.25, ucoe_ss], "color": "#C8E6C9"},
-                            {"range": [ucoe_ss, ctrl_ss], "color": "#FFF9C4"},
-                            {"range": [ctrl_ss, 0.55], "color": "#FFCDD2"},
-                        ],
-                        "threshold": {"line": {"color": "#FF6F00", "width": 3}, "value": ucoe_ss},
-                    },
-                    number={"valueformat": ".3f"},
-                ))
-                fig_ss.update_layout(height=250, margin=dict(l=30, r=30, t=80, b=20))
-                st.plotly_chart(fig_ss, use_container_width=True)
+            st.plotly_chart(fig_bio, use_container_width=True)
 
             # ── Automatic interpretation ──
             assessments = []
