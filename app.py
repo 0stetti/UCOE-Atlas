@@ -609,6 +609,16 @@ elif page == "Candidate Detail":
         ets_rev = [(m.start(), m.end(), "-", m.group()) for m in _re.finditer(r"[TC]TTCCG", seq)]
         ets_all = sorted(ets_fwd + ets_rev, key=lambda x: x[0])
 
+        # NFR regions (±200 bp around each TSS)
+        orig_start_rel = int(cand["orig_start"]) - int(cand["start"])
+        orig_end_rel = int(cand["orig_end"]) - int(cand["start"])
+        tss1 = orig_start_rel
+        tss2 = orig_end_rel
+        nfr_regions = [
+            (max(0, tss1 - 200), min(length, tss1 + 200)),
+            (max(0, tss2 - 200), min(length, tss2 + 200)),
+        ]
+
         # GC content
         gc_pos, gc_vals = [], []
         for i in range(0, length - window + 1, window // 2):
@@ -701,6 +711,11 @@ elif page == "Candidate Detail":
                                fillcolor="rgba(21,101,192,0.06)", line_width=0,
                                row=current_row, col=1)
 
+            # NFR shading on PhyloP panel
+            for nfr_s, nfr_e in nfr_regions:
+                fig_comp.add_vrect(x0=nfr_s, x1=nfr_e,
+                                   fillcolor="rgba(66,165,245,0.08)", line_width=0,
+                                   row=current_row, col=1)
             # Highlight ETS motifs
             for s, e, strand, mseq in ets_all:
                 fig_comp.add_vrect(x0=s, x1=e, fillcolor="rgba(255,215,0,0.4)",
@@ -751,49 +766,87 @@ elif page == "Candidate Detail":
         fig_comp.update_yaxes(title_text="ETS / 200bp", row=current_row, col=1)
         current_row += 1
 
-        # ── Panel: Gene structure + ETS positions ──
+        # ── Panel: Gene structure + ETS positions + NFR ──
+        # NFR regions (shaded blue)
+        for nfr_start, nfr_end in nfr_regions:
+            fig_comp.add_vrect(
+                x0=nfr_start, x1=nfr_end,
+                fillcolor="rgba(66,165,245,0.12)", line_width=0,
+                row=current_row, col=1,
+            )
+        # NFR labels
+        fig_comp.add_annotation(
+            x=(nfr_regions[0][0] + nfr_regions[0][1]) / 2, y=1.15,
+            text="<b>NFR</b>", showarrow=False,
+            font=dict(size=9, color="#1565C0"),
+            row=current_row, col=1,
+        )
+        if abs(nfr_regions[1][0] - nfr_regions[0][0]) > 100:  # only label second if not overlapping
+            fig_comp.add_annotation(
+                x=(nfr_regions[1][0] + nfr_regions[1][1]) / 2, y=1.15,
+                text="<b>NFR</b>", showarrow=False,
+                font=dict(size=9, color="#1565C0"),
+                row=current_row, col=1,
+            )
+
+        # TSS markers
+        fig_comp.add_shape(type="line", x0=tss1, x1=tss1, y0=-1.1, y1=1.1,
+                           line=dict(color="#1565C0", width=1.5, dash="dot"),
+                           row=current_row, col=1)
+        fig_comp.add_shape(type="line", x0=tss2, x1=tss2, y0=-1.1, y1=1.1,
+                           line=dict(color="#1565C0", width=1.5, dash="dot"),
+                           row=current_row, col=1)
+        fig_comp.add_annotation(x=tss1, y=-1.2, text="TSS", showarrow=False,
+                                font=dict(size=8, color="#1565C0"), row=current_row, col=1)
+        fig_comp.add_annotation(x=tss2, y=-1.2, text="TSS", showarrow=False,
+                                font=dict(size=8, color="#1565C0"), row=current_row, col=1)
+
         # Gene1 arrow (+ strand, right)
         fig_comp.add_shape(
-            type="line", x0=length * 0.4, x1=length * 0.95, y0=0.6, y1=0.6,
+            type="line", x0=tss1, x1=length * 0.95, y0=0.6, y1=0.6,
             line=dict(color="#2E86C1", width=6),
             row=current_row, col=1,
         )
         fig_comp.add_annotation(
-            x=length * 0.7, y=0.85,
+            x=(tss1 + length * 0.95) / 2, y=0.85,
             text=f"<b><i>{cand['gene1']}</i></b> →",
             showarrow=False, font=dict(size=12, color="#2E86C1"),
             row=current_row, col=1,
         )
         # Gene2 arrow (- strand, left)
         fig_comp.add_shape(
-            type="line", x0=length * 0.05, x1=length * 0.6, y0=-0.6, y1=-0.6,
+            type="line", x0=length * 0.05, x1=tss2, y0=-0.6, y1=-0.6,
             line=dict(color="#E67E22", width=6),
             row=current_row, col=1,
         )
         fig_comp.add_annotation(
-            x=length * 0.3, y=-0.85,
+            x=(length * 0.05 + tss2) / 2, y=-0.85,
             text=f"← <b><i>{cand['gene2']}</i></b>",
             showarrow=False, font=dict(size=12, color="#E67E22"),
             row=current_row, col=1,
         )
 
-        # ETS motifs as markers
+        # ETS motifs as markers (colored by NFR status)
         for i, (s, e, strand, motif_seq) in enumerate(ets_all):
+            in_nfr = any(nfr_s <= s <= nfr_e for nfr_s, nfr_e in nfr_regions)
             y_pos = 0.15 if strand == "+" else -0.15
-            color = "#C62828" if strand == "+" else "#6A1B9A"
-            symbol = "triangle-up" if strand == "+" else "triangle-down"
+            if in_nfr:
+                color = "#1565C0"  # blue = in NFR
+                symbol = "triangle-up" if strand == "+" else "triangle-down"
+            else:
+                color = "#C62828" if strand == "+" else "#6A1B9A"
+                symbol = "triangle-up" if strand == "+" else "triangle-down"
             fig_comp.add_trace(
                 go.Scatter(
                     x=[s], y=[y_pos], mode="markers",
                     marker=dict(size=10, color=color, symbol=symbol,
                                 line=dict(width=1, color="white")),
-                    hovertext=f"ETS #{i+1} ({strand})<br>{motif_seq}<br>pos {s}",
+                    hovertext=f"ETS #{i+1} ({strand})<br>{motif_seq}<br>pos {s}<br>{'IN NFR' if in_nfr else 'outside NFR'}",
                     hoverinfo="text",
                     showlegend=False,
                 ),
                 row=current_row, col=1,
             )
-            # Label only if enough space
             fig_comp.add_annotation(
                 x=s, y=y_pos + (0.25 if strand == "+" else -0.25),
                 text=f"<b>#{i+1}</b>", showarrow=False,
@@ -801,7 +854,7 @@ elif page == "Candidate Detail":
                 row=current_row, col=1,
             )
 
-        fig_comp.update_yaxes(range=[-1.3, 1.3], visible=False, row=current_row, col=1)
+        fig_comp.update_yaxes(range=[-1.4, 1.4], visible=False, row=current_row, col=1)
         fig_comp.update_xaxes(
             title_text=f"Position in {cand['label']} (bp)",
             row=current_row, col=1,
@@ -813,11 +866,17 @@ elif page == "Candidate Detail":
         )
         st.plotly_chart(fig_comp, use_container_width=True)
 
-        # ETS summary table
+        # ETS summary table with NFR info
         if ets_all:
-            st.markdown(f"**{len(ets_all)} ETS motifs** — density: {len(ets_all)/length*1000:.1f} motifs/kb")
+            n_in_nfr = sum(1 for s, e, _, _ in ets_all
+                           if any(nfr_s <= s <= nfr_e for nfr_s, nfr_e in nfr_regions))
+            st.markdown(
+                f"**{len(ets_all)} ETS motifs** — density: {len(ets_all)/length*1000:.1f} motifs/kb "
+                f"— **{n_in_nfr} in NFR** (within 200 bp of TSS)"
+            )
             ets_df = pd.DataFrame([
                 {"#": i+1, "Position": s, "Strand": strand, "Motif": motif_seq,
+                 "In NFR": "Yes" if any(nfr_s <= s <= nfr_e for nfr_s, nfr_e in nfr_regions) else "No",
                  "Genomic Coord.": f"{cand['chrom']}:{cand['start']+s:,}"}
                 for i, (s, e, strand, motif_seq) in enumerate(ets_all)
             ])
