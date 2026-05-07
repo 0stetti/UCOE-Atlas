@@ -672,397 +672,72 @@ elif page == "Candidate Explorer":
 # ══════════════════════════════════════════════════════════════════════════════
 elif page == "Candidate Detail":
     import re as _re
-
-    st.title("Candidate Detail")
+    from scipy.ndimage import uniform_filter1d
 
     sorted_scored = scored.sort_values("composite_rank")
+    stable_set    = set(sens[sens["stability_pct"] == 100]["label"].dropna())
+
     options = []
     for _, r in sorted_scored.iterrows():
-        tag  = " ★ Known UCOE"   if r["known_ucoe"]                          else ""
-        stab = " · 100% stable"  if r["label"] in set(sens[sens["stability_pct"]==100]["label"].dropna()) else ""
+        tag  = " ★"        if r["known_ucoe"]          else ""
+        stab = " · stable" if r["label"] in stable_set else ""
         options.append(f"#{int(r['composite_rank'])} — {r['label']} ({r['chrom']}){tag}{stab}")
 
-    known_opts = [o for o in options if "★" in o]
-    other_opts = [o for o in options if "★" not in o]
-    options_sorted = known_opts + other_opts
-
-    st.caption("★ Known UCOEs and 100% weight-stable candidates are listed first.")
-    selected = st.selectbox("Select candidate", options_sorted)
+    known_opts  = [o for o in options if "★" in o]
+    other_opts  = [o for o in options if "★" not in o]
+    sel_col, _ = st.columns([2, 3])
+    with sel_col:
+        selected = st.selectbox("Candidate", known_opts + other_opts,
+                                help="★ Known UCOEs listed first. · stable = 100% weight-stable.")
 
     rank = int(selected.split("#")[1].split(" ")[0])
     cand = scored_full[scored_full["composite_rank"] == rank].iloc[0]
 
-    # ── Header ──
-    h1, h2, h3, h4 = st.columns([3, 1, 1, 1])
-    with h1:
-        st.markdown(f"## {cand['label']}")
-        known = cand["known_ucoe"]
-        if known:
-            st.success(f"Experimentally validated UCOE: **{known}**")
-        if cand["label"] in set(sens[sens["stability_pct"]==100]["label"].dropna()):
-            st.info("**Weight-stable**: ranked in top 20 across all 29 weight combinations.")
-        st.markdown(
-            f"**{cand['chrom']}:{cand['start']:,}–{cand['end']:,}** &nbsp;·&nbsp; "
-            f"{cand['length']:,} bp &nbsp;·&nbsp; "
-            f"Type: {cand.get('pair_type', 'N/A')} &nbsp;·&nbsp; "
-            f"Inter-TSS: {cand['inter_tss_distance']:,} bp"
-        )
-    with h2:
-        st.metric("Rank", f"#{int(cand['composite_rank'])}")
-        st.metric("Score", f"{cand['composite_score']:.4f}")
-    with h3:
-        st.metric("Mahalanobis", f"{cand['mahalanobis_dist']:.3f}")
-        st.metric("Cosine Sim", f"{cand['cosine_sim']:.3f}")
-    with h4:
-        stab_row = sens[sens["label"] == cand["label"]]
-        if len(stab_row):
-            st.metric("Weight stability", f"{stab_row.iloc[0]['stability_pct']:.0f}%")
-        else:
-            st.metric("Weight stability", "—")
-        st.metric("CpG overlap", f"{cand['cpg_overlap_fraction']*100:.1f}%")
+    # ── Title block ──────────────────────────────────────────────────────────
+    known    = cand["known_ucoe"]
+    is_stable = cand["label"] in stable_set
 
-    st.markdown("---")
+    badges = ""
+    if known:
+        badges += (f"<span style='background:{P_AQUA};color:#fff;font-size:0.72rem;"
+                   f"font-weight:600;padding:3px 9px;border-radius:3px;margin-right:6px'>"
+                   f"Validated UCOE</span>")
+    if is_stable:
+        badges += (f"<span style='background:{P_MINT};color:#fff;font-size:0.72rem;"
+                   f"font-weight:600;padding:3px 9px;border-radius:3px;margin-right:6px'>"
+                   f"100% weight-stable</span>")
 
-    # ── Epigenomic profile ──
-    st.subheader("Epigenomic Profile")
-    col_radar, col_repr = st.columns(2)
+    stab_row   = sens[sens["label"] == cand["label"]]
+    stab_pct   = f"{stab_row.iloc[0]['stability_pct']:.0f}%" if len(stab_row) else "—"
+    has_int    = integrated is not None and cand["label"] in integrated["label"].values
+    int_row    = integrated[integrated["label"] == cand["label"]].iloc[0] if has_int else None
 
-    with col_radar:
-        features_radar = ["H3K4me3_mean", "H3K27ac_mean", "H3K9ac_mean",
-                          "H3K36me3_mean", "DNase_mean", "repliseq_mean"]
-        labels_radar   = ["H3K4me3", "H3K27ac", "H3K9ac", "H3K36me3", "DNase", "Repli-seq"]
-
-        vals_cand, vals_ref = [], []
-        for f in features_radar:
-            fmin = scored[f].min(); fmax = scored[f].max()
-            rng  = fmax - fmin if fmax != fmin else 1
-            vals_cand.append((cand[f] - fmin) / rng)
-            vals_ref.append((ref[f].mean() - fmin) / rng)
-
-        fig_radar = go.Figure()
-        fig_radar.add_trace(go.Scatterpolar(
-            r=vals_cand + [vals_cand[0]], theta=labels_radar + [labels_radar[0]],
-            fill="toself", name=cand["label"],
-            line_color=C_BLUE, fillcolor="rgba(21,101,192,0.15)",
-        ))
-        fig_radar.add_trace(go.Scatterpolar(
-            r=vals_ref + [vals_ref[0]], theta=labels_radar + [labels_radar[0]],
-            fill="toself", name="UCOE Reference",
-            line_color=C_RED, fillcolor="rgba(198,40,40,0.08)",
-            line_dash="dot",
-        ))
-        fig_radar.update_layout(
-            polar=dict(
-                radialaxis=dict(visible=True, range=[0, 1], tickfont=dict(size=9)),
-                angularaxis=dict(tickfont=dict(size=12)),
-            ),
-            title="Active Marks (min-max normalised)",
-            height=400,
-            margin=dict(l=60, r=60, t=60, b=40),
-            legend=dict(x=0.5, y=-0.1, xanchor="center", orientation="h"),
-            font=dict(family="Inter, sans-serif"),
-        )
-        st.plotly_chart(fig_radar, use_container_width=True)
-
-    with col_repr:
-        marks = {
-            "H3K27me3": cand["H3K27me3_mean"],
-            "H3K9me3":  cand["H3K9me3_mean"],
-            "Methylation (%)": cand["meth_mean"],
-        }
-        ref_marks = {
-            "H3K27me3":       ref["H3K27me3_mean"].mean(),
-            "H3K9me3":        ref["H3K9me3_mean"].mean(),
-            "Methylation (%)": ref["meth_mean"].mean(),
-        }
-        fig_repr = go.Figure()
-        fig_repr.add_trace(go.Bar(
-            x=list(marks.keys()), y=list(marks.values()),
-            name=cand["label"], marker_color=C_BLUE, opacity=0.85,
-        ))
-        fig_repr.add_trace(go.Bar(
-            x=list(ref_marks.keys()), y=list(ref_marks.values()),
-            name="UCOE Reference", marker_color=C_RED, opacity=0.75,
-        ))
-        apply_template(fig_repr, height=380)
-        fig_repr.update_layout(
-            barmode="group", title="Repressive Marks & Methylation",
-            yaxis_title="Signal / %",
-        )
-        st.plotly_chart(fig_repr, use_container_width=True)
-
-    # ── CpG properties ──
-    cp1, cp2, cp3 = st.columns(3)
-    cp1.metric("CpG Overlap",  f"{cand['cpg_overlap_fraction']*100:.1f}%")
-    cp2.metric("CpG Obs/Exp",  f"{cand['cpg_obs_exp']:.2f}")
-    cp3.metric("GC Content",   f"{min(cand['cpg_gc_pct'], 100):.0f}%")
-
-    st.markdown("---")
-
-    # ── Regulatory Signature (new) ──
-    st.subheader("Regulatory Sequence Signature")
-
-    has_int = integrated is not None and cand["label"] in integrated["label"].values
-    if has_int:
-        int_row = integrated[integrated["label"] == cand["label"]].iloc[0]
-
-        rs1, rs2, rs3, rs4 = st.columns(4)
-        rs1.metric("ETS motifs",      f"{int(int_row['n_ets'])}")
-        rs2.metric("ETS density",     f"{int_row['ets_density_kb']:.2f} / kb")
-        rs3.metric("ETS in NFR",
-                   f"{int(int_row['ets_in_nfr'])} / {int(int_row['n_ets'])}",
-                   help="ETS motifs within ±200 bp of a TSS")
-        rs4.metric("ETS NFR fraction", f"{int_row['frac_ets_in_nfr']*100:.0f}%")
-
-        st.markdown("<br>", unsafe_allow_html=True)
-        rc1, rc2, rc3 = st.columns(3)
-
-        # PhyloP at ETS vs background
-        ets_phylop = int_row.get("ets_phylop_mean", np.nan)
-        bg_phylop  = int_row.get("phylop_mean", np.nan)
-        with rc1:
-            if not pd.isna(ets_phylop) and not pd.isna(bg_phylop):
-                ratio = ets_phylop / bg_phylop if bg_phylop != 0 else float("nan")
-                st.markdown(f"""
-                <div style="background:{C_BGCARD};border:1px solid {C_BORDER};
-                            border-radius:10px;padding:18px">
-                <div style="font-size:0.8rem;font-weight:600;color:{C_GRAY};
-                            text-transform:uppercase;letter-spacing:0.04em">
-                PhyloP Conservation</div>
-                <div style="font-size:1.4rem;font-weight:700;color:{C_NAVY};margin:6px 0">
-                {ets_phylop:.3f} <span style="font-size:0.9rem;color:{C_GRAY}">at ETS</span></div>
-                <div style="font-size:0.95rem;color:{C_GRAY}">
-                {bg_phylop:.3f} background</div>
-                {"<div style='color:"+C_GREEN+";font-size:0.85rem;margin-top:6px;font-weight:600'>▲ ETS under stronger purifying selection</div>" if ets_phylop > bg_phylop else ""}
-                </div>""", unsafe_allow_html=True)
-            else:
-                st.metric("PhyloP (background)", f"{bg_phylop:.3f}" if not pd.isna(bg_phylop) else "—")
-
-        with rc2:
-            feat_score = int(int_row.get("feature_score", 0))
-            bar = "●" * feat_score + "○" * (4 - feat_score)
-            color = [C_RED, C_AMBER, C_TEAL, C_BLUE, C_GREEN][feat_score]
-            st.markdown(f"""
-            <div style="background:{C_BGCARD};border:1px solid {C_BORDER};
-                        border-radius:10px;padding:18px">
-            <div style="font-size:0.8rem;font-weight:600;color:{C_GRAY};
-                        text-transform:uppercase;letter-spacing:0.04em">
-            Regulatory Feature Score</div>
-            <div style="font-size:1.8rem;font-weight:700;color:{color};margin:6px 0">
-            {feat_score} / 4</div>
-            <div style="font-size:1.2rem;color:{color};letter-spacing:4px">{bar}</div>
-            <div style="color:{C_GRAY};font-size:0.82rem;margin-top:6px">
-            ETS count + NFR positioning + conservation + dimer/palindrome</div>
-            </div>""", unsafe_allow_html=True)
-
-        with rc3:
-            ww = int_row.get("ww_fraction", np.nan)
-            ss = int_row.get("ss_fraction", np.nan)
-            if not pd.isna(ww):
-                st.markdown(f"""
-                <div style="background:{C_BGCARD};border:1px solid {C_BORDER};
-                            border-radius:10px;padding:18px">
-                <div style="font-size:0.8rem;font-weight:600;color:{C_GRAY};
-                            text-transform:uppercase;letter-spacing:0.04em">
-                Dinucleotide Composition</div>
-                <div style="margin:8px 0">
-                  <span style="font-weight:700;color:{C_RED}">WW</span>
-                  <span style="color:{C_NAVY};font-weight:600"> {ww:.3f}</span>
-                  <span style="color:{C_GRAY};font-size:0.8rem">
-                  {'▲ above median' if ww > REF_CAND_WW else '▼ below median'}</span>
-                </div>
-                <div>
-                  <span style="font-weight:700;color:{C_BLUE}">SS</span>
-                  <span style="color:{C_NAVY};font-weight:600"> {ss:.3f}</span>
-                  <span style="color:{C_GRAY};font-size:0.8rem">
-                  {'▼ below median' if ss < REF_CAND_SS else '▲ above median'}</span>
-                </div>
-                <div style="color:{C_GRAY};font-size:0.8rem;margin-top:8px">
-                Candidate median WW {REF_CAND_WW:.3f} · SS {REF_CAND_SS:.3f}</div>
-                </div>""", unsafe_allow_html=True)
-    else:
-        st.info("Integrated classification data not available for this candidate.")
-
-    # ── Integrated Locus Analysis (top candidate only) ──
-    _fig_path = DATA_DIR / "fig_smim27_topors_composite.png"
-    _is_smim27 = (
-        cand.get("gene1", "") == "SMIM27" or cand.get("gene2", "") == "SMIM27"
-        or "SMIM27" in str(cand.get("label", ""))
-        or cand.get("rank", 9999) == 1
+    st.markdown(
+        f"<div style='margin-bottom:4px'>{badges}</div>"
+        f"<h1 style='font-size:1.7rem;font-weight:700;color:{P_INK};"
+        f"letter-spacing:-0.02em;margin-bottom:2px'>{cand['label']}</h1>"
+        f"<p style='color:{P_SLATE};font-size:0.9rem;margin-top:0'>"
+        f"{cand['chrom']}:{cand['start']:,}–{cand['end']:,} &nbsp;·&nbsp; "
+        f"{cand['length']:,} bp &nbsp;·&nbsp; "
+        f"Inter-TSS {cand['inter_tss_distance']:,} bp &nbsp;·&nbsp; "
+        f"Type: {cand.get('pair_type','N/A')}</p>",
+        unsafe_allow_html=True,
     )
-    if _is_smim27 and _fig_path.exists():
-        st.markdown("---")
-        st.subheader("Integrated Locus Analysis")
-        st.caption(
-            "Four-panel genomic view of the SMIM27/TOPORS locus: "
-            "gene architecture and nucleosome-free regions (A), "
-            "PhyloP vertebrate conservation (B), "
-            "PhastCons conservation probability (C), "
-            "and GC content with CpG density (D). "
-            "Gold vertical bands mark ETS motif positions."
-        )
-        st.image(str(_fig_path), use_column_width=True)
 
-    st.markdown("---")
+    # ── Score strip ──────────────────────────────────────────────────────────
+    sc1, sc2, sc3, sc4, sc5, sc6 = st.columns(6)
+    sc1.metric("Rank",             f"#{int(cand['composite_rank'])}")
+    sc2.metric("Composite Score",  f"{cand['composite_score']:.4f}")
+    sc3.metric("Mahalanobis",      f"{cand['mahalanobis_dist']:.3f}")
+    sc4.metric("Cosine Sim",       f"{cand['cosine_sim']:.3f}")
+    sc5.metric("Weight Stability", stab_pct)
+    sc6.metric("CpG Obs/Exp",      f"{cand['cpg_obs_exp']:.2f}")
 
-    # ── DNA Biophysical Properties ──
-    st.subheader("DNA Biophysical Properties")
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-    if struct_cand is not None:
-        struct_row = None
-        for _, sr in struct_cand.iterrows():
-            h = str(sr.get("header", ""))
-            if cand["gene1"] in h and cand["gene2"] in h:
-                struct_row = sr
-                break
-
-        if struct_row is not None:
-            ww_val      = struct_row["ww_fraction"]
-            ss_val      = struct_row["ss_fraction"]
-            nuc_val     = struct_row["nuc_score_mean"]
-            entropy_val = struct_row["dinuc_entropy"]
-            gc_val      = struct_row["gc_content"]
-
-            st.markdown("""
-            UCOEs maintain open chromatin partly through **DNA composition**: WW dinucleotides
-            (AA, AT, TA, TT) reduce thermodynamic affinity for histone octamers, creating a
-            **sequence-intrinsic barrier to nucleosome formation** independent of epigenetic state.
-            """)
-
-            fig_bio = make_subplots(
-                rows=2, cols=1, vertical_spacing=0.28,
-                subplot_titles=(
-                    "WW Fraction (AA+AT+TA+TT) — higher disfavours nucleosomes",
-                    "SS Fraction (CC+CG+GC+GG) — lower disfavours nucleosomes",
-                ),
-            )
-            bh = 0.35
-            for row_i, (this_v, ref_v, ctrl_v, col_this, col_ref) in enumerate([
-                (ww_val, REF_CAND_WW, REF_CTRL_WW, C_RED,  "#FF8A65"),
-                (ss_val, REF_CAND_SS, REF_CTRL_SS, C_BLUE, "#64B5F6"),
-            ], 1):
-                fig_bio.add_trace(go.Bar(
-                    y=["This candidate"], x=[this_v], orientation="h",
-                    marker_color=col_this, width=bh, showlegend=(row_i == 1),
-                    text=[f"{this_v:.3f}"], textposition="outside", name="This candidate",
-                ), row=row_i, col=1)
-                fig_bio.add_trace(go.Bar(
-                    y=["UCOE candidates (median)"], x=[ref_v], orientation="h",
-                    marker_color=col_ref, width=bh, showlegend=(row_i == 1),
-                    text=[f"{ref_v:.3f}"], textposition="outside", name="UCOE median",
-                ), row=row_i, col=1)
-                fig_bio.add_trace(go.Bar(
-                    y=["CpG island controls"], x=[ctrl_v], orientation="h",
-                    marker_color="#BDBDBD", width=bh, showlegend=(row_i == 1),
-                    text=[f"{ctrl_v:.3f}"], textposition="outside", name="Controls",
-                ), row=row_i, col=1)
-
-            fig_bio.update_layout(
-                height=340, showlegend=True,
-                margin=dict(l=10, r=70, t=50, b=10),
-                legend=dict(orientation="h", x=0.5, y=-0.05, xanchor="center"),
-                font=dict(family="Inter, sans-serif", size=12),
-            )
-            st.plotly_chart(fig_bio, use_container_width=True)
-
-            # Assessment
-            assessments = []
-            if ww_val >= REF_CAND_WW:
-                assessments.append(("WW enrichment", "FAVORABLE", C_GREEN,
-                    "WW fraction ≥ candidate median — elevated A/T dinucleotides disfavour nucleosome wrapping."))
-            elif ww_val >= REF_CTRL_WW:
-                assessments.append(("WW enrichment", "MODERATE", C_AMBER,
-                    "WW fraction above generic CpG island controls but below candidate median."))
-            else:
-                assessments.append(("WW enrichment", "LOW", C_RED,
-                    "WW fraction below CpG island controls — no WW enrichment detected."))
-
-            if ss_val <= REF_CAND_SS:
-                assessments.append(("SS depletion", "FAVORABLE", C_GREEN,
-                    "SS fraction ≤ candidate median — reduced stacking energy disfavours stable nucleosomes."))
-            elif ss_val <= REF_CTRL_SS:
-                assessments.append(("SS depletion", "MODERATE", C_AMBER,
-                    "SS fraction below controls but above candidate median."))
-            else:
-                assessments.append(("SS depletion", "LOW", C_RED,
-                    "High SS content — favours nucleosome stability."))
-
-            if entropy_val >= 3.55:
-                assessments.append(("Compositional diversity", "FAVORABLE", C_GREEN,
-                    f"Dinucleotide entropy {entropy_val:.3f} — diverse composition disrupts nucleosome positioning signals."))
-            else:
-                assessments.append(("Compositional diversity", "MODERATE", C_AMBER,
-                    f"Dinucleotide entropy {entropy_val:.3f} — moderate compositional diversity."))
-
-            st.markdown("**Biophysical Assessment**")
-            for criterion, status, color, explanation in assessments:
-                st.markdown(
-                    f"**{criterion}**: "
-                    f"<span style='color:{color};font-weight:700'>{status}</span>"
-                    f" — {explanation}",
-                    unsafe_allow_html=True,
-                )
-
-            n_fav = sum(1 for _, s, _, _ in assessments if s == "FAVORABLE")
-            if n_fav >= 2:
-                st.success(f"{n_fav}/3 biophysical criteria FAVORABLE — consistent with UCOE-like sequence composition.")
-            elif n_fav == 1:
-                st.warning(f"{n_fav}/3 biophysical criteria FAVORABLE — partial nucleosome exclusion signature.")
-            else:
-                st.error("No biophysical criteria FAVORABLE for nucleosome exclusion.")
-
-            with st.expander("Detailed biophysical metrics"):
-                d1, d2, d3, d4 = st.columns(4)
-                d1.metric("WW Fraction",  f"{ww_val:.3f}")
-                d2.metric("SS Fraction",  f"{ss_val:.3f}")
-                d3.metric("Entropy",      f"{entropy_val:.3f}")
-                d4.metric("Nuc. Score",   f"{nuc_val:.4f}")
-                d5, d6, d7, d8 = st.columns(4)
-                d5.metric("Flexibility",  f"{struct_row['flexibility_mean']:.4f}")
-                d6.metric("Stiffness",    f"{struct_row['stiffness_mean']:.3f}")
-                d7.metric("GC Content",   f"{gc_val*100:.1f}%")
-                d8.metric("CpG Obs/Exp",  f"{struct_row['cpg_obs_exp']:.2f}")
-
-            with st.expander("Full dinucleotide spectrum"):
-                dinuc_cols   = [f"dinuc_{d}" for d in
-                                ["AA","AC","AG","AT","CA","CC","CG","CT",
-                                 "GA","GC","GG","GT","TA","TC","TG","TT"]]
-                dinuc_labels = [d.replace("dinuc_", "") for d in dinuc_cols]
-                vals_this    = [struct_row[c] for c in dinuc_cols]
-                ctrl_meds    = [struct_ctrl[c].median() for c in dinuc_cols] if struct_ctrl is not None else None
-                known_means  = [struct_known[c].mean()  for c in dinuc_cols] if struct_known is not None else None
-                ww_set = {"AA","AT","TA","TT"}; ss_set = {"CC","CG","GC","GG"}
-                colors_d = [C_RED if d in ww_set else C_BLUE if d in ss_set else "#9E9E9E"
-                            for d in dinuc_labels]
-                fig_dn = go.Figure()
-                fig_dn.add_trace(go.Bar(x=dinuc_labels, y=vals_this, name="This candidate",
-                                        marker_color=colors_d, opacity=0.85))
-                if ctrl_meds:
-                    fig_dn.add_trace(go.Scatter(x=dinuc_labels, y=ctrl_meds,
-                                                mode="markers+lines", name="Controls (median)",
-                                                line=dict(color="#757575", width=1.5, dash="dash"),
-                                                marker=dict(size=5)))
-                if known_means:
-                    fig_dn.add_trace(go.Scatter(x=dinuc_labels, y=known_means,
-                                                mode="markers+lines", name="Known UCOEs (mean)",
-                                                line=dict(color=C_AMBER, width=2),
-                                                marker=dict(size=7, symbol="diamond")))
-                apply_template(fig_dn, height=320)
-                fig_dn.update_layout(title="Dinucleotide Spectrum",
-                                     xaxis_title="Dinucleotide", yaxis_title="Proportion")
-                st.plotly_chart(fig_dn, use_container_width=True)
-                st.caption("**WW** (red) = AA, AT, TA, TT — disfavour nucleosomes. "
-                           "**SS** (blue) = CC, CG, GC, GG — favour nucleosomes.")
-        else:
-            st.info("Structural data not available for this candidate.")
-    else:
-        st.info("Structural data files not found.")
-
-    st.markdown("---")
-
-    # ── Genomic Profile ──
-    st.subheader("Genomic Profile")
-
+    # ══════════════════════════════════════════════════════════════════════════
+    # GENOMIC VIEWER  (UCSC-style multi-panel)
+    # ══════════════════════════════════════════════════════════════════════════
     fasta_seqs        = load_fasta_sequences()
     conservation_data = load_conservation_top50()
 
@@ -1074,208 +749,425 @@ elif page == "Candidate Detail":
             seq_key = key; break
 
     if seq_key and seq_key in fasta_seqs:
-        seq = fasta_seqs[seq_key]; length = len(seq); window = 100
+        seq    = fasta_seqs[seq_key].upper()
+        length = len(seq)
+        WINDOW = 100
 
+        # ETS motifs
         ets_fwd = [(m.start(), m.end(), "+", m.group()) for m in _re.finditer(r"CGGAA[GA]", seq)]
         ets_rev = [(m.start(), m.end(), "-", m.group()) for m in _re.finditer(r"[TC]TTCCG", seq)]
         ets_all = sorted(ets_fwd + ets_rev, key=lambda x: x[0])
 
+        # TSS / NFR
         orig_start_rel = int(cand["orig_start"]) - int(cand["start"])
         orig_end_rel   = int(cand["orig_end"])   - int(cand["start"])
-        tss1, tss2 = orig_start_rel, orig_end_rel
-        nfr_regions = [
+        tss1, tss2     = orig_start_rel, orig_end_rel
+        nfr_regions    = [
             (max(0, tss1 - 200), min(length, tss1 + 200)),
             (max(0, tss2 - 200), min(length, tss2 + 200)),
         ]
 
-        gc_pos, gc_vals, cpg_pos, cpg_vals = [], [], [], []
-        for i in range(0, length - window + 1, window // 2):
-            w = seq[i:i + window]
-            gc_pos.append(i + window // 2)
+        # GC% and CpG density (100 bp window, 50 bp step)
+        gc_pos, gc_vals, cpg_vals = [], [], []
+        for i in range(0, length - WINDOW + 1, WINDOW // 2):
+            w = seq[i:i + WINDOW]
+            gc_pos.append(i + WINDOW // 2)
             gc_vals.append((w.count("G") + w.count("C")) / len(w) * 100)
-            cpg_pos.append(i + window // 2)
             cpg_vals.append(w.count("CG"))
 
-        ets_dens_pos, ets_dens_vals = [], []
-        for i in range(0, length - 200 + 1, 100):
-            ets_dens_pos.append(i + 100)
-            ets_dens_vals.append(sum(1 for s, *_ in ets_all if i <= s < i + 200))
-
-        cons_key = f"{cand['gene1']}_{cand['gene2']}"
-        has_cons = cons_key in conservation_data
-        phylop_arr = conservation_data.get(cons_key, None)
-
-        available_panels = []
+        # PhyloP
+        cons_key   = f"{cand['gene1']}_{cand['gene2']}"
+        has_cons   = cons_key in conservation_data
+        phylop_raw = conservation_data.get(cons_key, None)
         if has_cons:
-            available_panels.append("PhyloP Conservation")
-        available_panels += ["Gene Structure, ETS & NFR",
-                             "GC Content & CpG Density",
-                             "CpG Island", "ETS Motif Density"]
+            phylop_s = uniform_filter1d(np.nan_to_num(phylop_raw, nan=0.0), size=5)
+            pos_full = np.arange(len(phylop_s))
 
-        selected_panels = st.multiselect(
-            "Select panels", available_panels, default=available_panels,
-            help="Remove panels you don't need.",
+        # ── Build subplots ────────────────────────────────────────────────────
+        panel_names = ["A  Gene Structure", "B  GC% & CpG Density", "C  ETS Motif Density"]
+        row_h       = [0.32, 0.36, 0.32]
+        if has_cons:
+            panel_names.insert(1, "B  PhyloP Conservation (100 vertebrates)")
+            panel_names[2] = "C  GC% & CpG Density"
+            panel_names[3] = "D  ETS Motif Density"
+            row_h = [0.24, 0.30, 0.26, 0.20]
+
+        n_rows  = len(panel_names)
+        fig_ucsc = make_subplots(
+            rows=n_rows, cols=1, shared_xaxes=True,
+            row_heights=row_h, vertical_spacing=0.02,
         )
 
-        if selected_panels:
-            height_map = {
-                "PhyloP Conservation": 0.30,
-                "Gene Structure, ETS & NFR": 0.30,
-                "GC Content & CpG Density": 0.25,
-                "CpG Island": 0.10,
-                "ETS Motif Density": 0.15,
-            }
-            row_heights = [height_map.get(p, 0.2) for p in selected_panels]
-            n_rows = len(selected_panels)
+        def _shade_ets(fig, ets_all, row):
+            for s, e, _, _ in ets_all:
+                fig.add_vrect(x0=s, x1=e,
+                              fillcolor=f"rgba(246,196,122,0.38)", line_width=0,
+                              row=row, col=1)
 
-            fig_comp = make_subplots(
-                rows=n_rows, cols=1, shared_xaxes=True,
-                row_heights=row_heights, vertical_spacing=0.03,
-                subplot_titles=selected_panels,
+        cur = 1   # current row counter
+
+        # ── Panel A: Gene structure ───────────────────────────────────────────
+        # NFR shading
+        nfr_colors = [P_AQUA, P_ROSE]
+        for (ns, ne), nc in zip(nfr_regions, nfr_colors):
+            fig_ucsc.add_shape(
+                type="rect", x0=ns, x1=ne, y0=-1.5, y1=1.5,
+                fillcolor=f"{nc}28", line=dict(width=0), row=cur, col=1,
+            )
+        # TSS lines
+        for tss_p in [tss1, tss2]:
+            fig_ucsc.add_shape(
+                type="line", x0=tss_p, x1=tss_p, y0=-1.5, y1=1.5,
+                line=dict(color=P_GHOST, width=1, dash="dot"), row=cur, col=1,
+            )
+        # Gene arrows (thick lines)
+        g1_x0, g1_x1 = min(tss1, length - 1), max(tss1, length - 1)
+        g2_x0, g2_x1 = 0, max(0, tss2)
+        for gx0, gx1, gy, gc, gname, arrow in [
+            (g1_x0, g1_x1, 0.65, P_AQUA, cand["gene1"], "right"),
+            (g2_x0, g2_x1, -0.65, P_ROSE, cand["gene2"], "left"),
+        ]:
+            fig_ucsc.add_shape(
+                type="line", x0=gx0, x1=gx1, y0=gy, y1=gy,
+                line=dict(color=gc, width=8, dash="solid"), row=cur, col=1,
+            )
+            fig_ucsc.add_annotation(
+                x=(gx0 + gx1) / 2, y=gy + (0.35 if gy > 0 else -0.35),
+                text=f"<i><b>{gname}</b></i>",
+                showarrow=False, font=dict(size=12, color=gc), row=cur, col=1,
+            )
+        # ETS markers
+        for i, (s, e, strand, mseq) in enumerate(ets_all):
+            in_nfr = any(ns <= s <= ne for ns, ne in nfr_regions)
+            y_pos  = -0.15 if strand == "+" else 0.15
+            sym    = "triangle-down" if strand == "+" else "triangle-up"
+            fig_ucsc.add_trace(go.Scatter(
+                x=[(s + e) / 2], y=[y_pos], mode="markers",
+                marker=dict(size=11, color=P_PEACH, symbol=sym,
+                            line=dict(width=1.2, color=P_INK)),
+                hovertemplate=f"ETS #{i+1} ({strand})<br>{mseq}<br>"
+                              f"pos {s}<br>{'in NFR' if in_nfr else 'outside NFR'}<extra></extra>",
+                showlegend=False,
+            ), row=cur, col=1)
+            fig_ucsc.add_annotation(
+                x=(s + e) / 2, y=y_pos + (-0.28 if strand == "+" else 0.28),
+                text=f"#{i+1}", showarrow=False,
+                font=dict(size=8, color=P_SLATE), row=cur, col=1,
+            )
+        fig_ucsc.update_yaxes(
+            visible=False, range=[-1.6, 1.6], row=cur, col=1,
+        )
+        # y-axis label via annotation
+        fig_ucsc.add_annotation(
+            x=-0.06, y=0.5, xref="paper", yref="paper",
+            text="Gene<br>structure", showarrow=False,
+            font=dict(size=9, color=P_SLATE), textangle=-90,
+            xanchor="center", yanchor="middle",
+        )
+        cur += 1
+
+        # ── Panel B: PhyloP (if available) ───────────────────────────────────
+        if has_cons:
+            _shade_ets(fig_ucsc, ets_all, cur)
+            fig_ucsc.add_trace(go.Scatter(
+                x=pos_full[phylop_s > 0], y=phylop_s[phylop_s > 0],
+                mode="lines", name="Conserved",
+                line=dict(color=P_AQUA, width=0),
+                fill="tozeroy", fillcolor=f"{P_AQUA}B0",
+            ), row=cur, col=1)
+            fig_ucsc.add_trace(go.Scatter(
+                x=pos_full[phylop_s <= 0], y=phylop_s[phylop_s <= 0],
+                mode="lines", name="Accelerated",
+                line=dict(color=P_ROSE, width=0),
+                fill="tozeroy", fillcolor=f"{P_ROSE}99",
+            ), row=cur, col=1)
+            fig_ucsc.add_hline(y=0, line_color=P_GHOST, line_width=0.8,
+                               line_dash="dash", row=cur, col=1)
+            fig_ucsc.update_yaxes(
+                title_text="PhyloP", title_font=dict(size=9, color=P_SLATE),
+                zeroline=False, row=cur, col=1,
+            )
+            cur += 1
+
+        # ── Panel C: GC% + CpG density ───────────────────────────────────────
+        _shade_ets(fig_ucsc, ets_all, cur)
+        # GC% filled area
+        fig_ucsc.add_trace(go.Scatter(
+            x=gc_pos, y=gc_vals, mode="lines", name="GC %",
+            line=dict(color=P_SKY, width=1.8),
+            fill="tozeroy", fillcolor=f"{P_SKY}33",
+        ), row=cur, col=1)
+        fig_ucsc.add_hline(y=50, line_color=P_GHOST, line_width=0.7,
+                           line_dash="dot", row=cur, col=1)
+        # CpG bars on secondary-ish (scaled to gc axis)
+        cpg_max = max(cpg_vals) if cpg_vals else 1
+        cpg_scaled = [v / cpg_max * 80 for v in cpg_vals]
+        fig_ucsc.add_trace(go.Bar(
+            x=gc_pos, y=cpg_scaled, name="CpG density",
+            marker_color=P_LAVENDER, opacity=0.65, width=WINDOW * 0.4,
+        ), row=cur, col=1)
+        fig_ucsc.update_yaxes(
+            title_text="GC %", title_font=dict(size=9, color=P_SLATE),
+            range=[0, 100], row=cur, col=1,
+        )
+        cur += 1
+
+        # ── Panel D: ETS motif density ────────────────────────────────────────
+        ets_dens_pos, ets_dens_vals = [], []
+        STEP = 100
+        for i in range(0, length - 200 + 1, STEP):
+            ets_dens_pos.append(i + 100)
+            ets_dens_vals.append(sum(1 for s2, *_ in ets_all if i <= s2 < i + 200))
+        fig_ucsc.add_trace(go.Bar(
+            x=ets_dens_pos, y=ets_dens_vals, name="ETS / 200 bp",
+            marker_color=P_PEACH, opacity=0.80, width=STEP * 0.8,
+        ), row=cur, col=1)
+        fig_ucsc.update_yaxes(
+            title_text="ETS / 200 bp", title_font=dict(size=9, color=P_SLATE),
+            dtick=1, row=cur, col=1,
+        )
+
+        # ── Shared layout ─────────────────────────────────────────────────────
+        fig_ucsc.update_xaxes(
+            showgrid=False, showline=True, linecolor=P_RULE, linewidth=0.8,
+            tickfont=dict(size=10, color=P_SLATE), tickcolor=P_GHOST,
+        )
+        fig_ucsc.update_xaxes(
+            title_text=f"Position in {cand['label']} locus (bp)",
+            title_font=dict(size=11, color=P_SLATE),
+            row=cur, col=1,
+        )
+        fig_ucsc.update_layout(
+            height=130 * n_rows + 80,
+            showlegend=False,
+            margin=dict(l=72, r=28, t=28, b=44),
+            paper_bgcolor=P_BG, plot_bgcolor=P_BG,
+            font=dict(family="Inter, Arial, sans-serif", size=11, color=P_SLATE),
+        )
+        # Panel labels (A, B, C, D) — match figure style
+        panel_letters = "ABCD"
+        row_positions  = [1 - (i + 0.5) / n_rows for i in range(n_rows)]
+        for i, (letter, yp) in enumerate(zip(panel_letters[:n_rows], row_positions)):
+            fig_ucsc.add_annotation(
+                x=-0.04, y=yp, xref="paper", yref="paper",
+                text=f"<b>{letter}</b>",
+                showarrow=False, font=dict(size=13, color=P_INK),
+                xanchor="right", yanchor="middle",
             )
 
-            for idx, panel in enumerate(selected_panels):
-                row = idx + 1
-                if panel == "PhyloP Conservation" and has_cons:
-                    from scipy.ndimage import uniform_filter1d
-                    smooth = uniform_filter1d(np.nan_to_num(phylop_arr, nan=0.0), size=20)
-                    fig_comp.add_trace(go.Scatter(
-                        x=list(range(len(smooth))), y=smooth, mode="lines",
-                        name="PhyloP", line=dict(color=C_BLUE, width=1.2),
-                        fill="tozeroy", fillcolor="rgba(21,101,192,0.12)"),
-                        row=row, col=1)
-                    for yv, lbl, col, dash in [
-                        (2.0, "Strong", C_RED, "dot"),
-                        (1.0, "Significant", C_AMBER, "dot"),
-                        (0.0, "Neutral", "#9E9E9E", "dash"),
-                    ]:
-                        fig_comp.add_hline(y=yv, line_dash=dash, line_color=col,
-                                           opacity=0.5, row=row, col=1,
-                                           annotation_text=lbl, annotation_position="right",
-                                           annotation_font=dict(size=9, color=col))
-                    for s, e, _, _ in ets_all:
-                        fig_comp.add_vrect(x0=s, x1=e, fillcolor="rgba(255,215,0,0.35)",
-                                           line_width=0, row=row, col=1)
-                    fig_comp.update_yaxes(title_text="PhyloP", row=row, col=1)
+        st.plotly_chart(fig_ucsc, use_container_width=True)
 
-                elif panel == "GC Content & CpG Density":
-                    fig_comp.add_trace(go.Scatter(
-                        x=gc_pos, y=gc_vals, mode="lines", name="GC %",
-                        line=dict(color=C_TEAL, width=1.5),
-                        fill="tozeroy", fillcolor="rgba(0,131,143,0.10)"),
-                        row=row, col=1)
-                    fig_comp.add_trace(go.Bar(
-                        x=cpg_pos, y=[v * 3 for v in cpg_vals], name="CpG (×3)",
-                        marker_color="rgba(255,143,0,0.4)", width=window * 0.4),
-                        row=row, col=1)
-                    fig_comp.add_hline(y=50, line_dash="dot", line_color="#9E9E9E",
-                                       opacity=0.4, row=row, col=1)
-                    fig_comp.update_yaxes(title_text="GC %", row=row, col=1)
-
-                elif panel == "CpG Island":
-                    cpg_cov = cand["cpg_overlap_fraction"]
-                    cpg_end = int(length * cpg_cov)
-                    fig_comp.add_shape(type="rect", x0=0, x1=cpg_end, y0=0.1, y1=0.9,
-                                       fillcolor="rgba(129,199,132,0.55)",
-                                       line=dict(color=C_GREEN, width=1.5), row=row, col=1)
-                    fig_comp.add_annotation(x=cpg_end / 2, y=0.5,
-                                            text=f"CpG Island — {cpg_cov*100:.1f}% "
-                                                 f"(obs/exp={cand['cpg_obs_exp']:.1f})",
-                                            showarrow=False,
-                                            font=dict(size=11, color="#1B5E20"), row=row, col=1)
-                    fig_comp.update_yaxes(visible=False, range=[0, 1], row=row, col=1)
-
-                elif panel == "ETS Motif Density":
-                    fig_comp.add_trace(go.Bar(
-                        x=ets_dens_pos, y=ets_dens_vals, name="ETS / 200 bp",
-                        marker_color="rgba(198,40,40,0.6)", width=80),
-                        row=row, col=1)
-                    fig_comp.update_yaxes(title_text="ETS / 200 bp", row=row, col=1)
-
-                elif panel == "Gene Structure, ETS & NFR":
-                    for nfr_s, nfr_e in nfr_regions:
-                        fig_comp.add_shape(type="rect", x0=nfr_s, x1=nfr_e,
-                                           y0=-1.3, y1=1.3,
-                                           fillcolor="rgba(66,165,245,0.09)",
-                                           line=dict(color=C_BLUE, width=1.2, dash="dash"),
-                                           row=row, col=1)
-                        fig_comp.add_annotation(x=(nfr_s+nfr_e)/2, y=1.22,
-                                                text="<b>NFR</b>", showarrow=False,
-                                                font=dict(size=10, color=C_BLUE), row=row, col=1)
-                    for tss_p in [tss1, tss2]:
-                        fig_comp.add_shape(type="line", x0=tss_p, x1=tss_p,
-                                           y0=-1.3, y1=1.3,
-                                           line=dict(color=C_NAVY, width=2), row=row, col=1)
-                        fig_comp.add_annotation(x=tss_p, y=-1.35, text="<b>TSS</b>",
-                                                showarrow=False,
-                                                font=dict(size=9, color=C_NAVY), row=row, col=1)
-                    fig_comp.add_shape(type="line", x0=tss1, x1=length*0.95,
-                                       y0=0.6, y1=0.6,
-                                       line=dict(color=C_BLUE, width=6), row=row, col=1)
-                    fig_comp.add_annotation(x=(tss1+length*0.95)/2, y=0.85,
-                                            text=f"<b><i>{cand['gene1']}</i></b> →",
-                                            showarrow=False, font=dict(size=12, color=C_BLUE),
-                                            row=row, col=1)
-                    fig_comp.add_shape(type="line", x0=length*0.05, x1=tss2,
-                                       y0=-0.6, y1=-0.6,
-                                       line=dict(color=C_AMBER, width=6), row=row, col=1)
-                    fig_comp.add_annotation(x=(length*0.05+tss2)/2, y=-0.85,
-                                            text=f"← <b><i>{cand['gene2']}</i></b>",
-                                            showarrow=False, font=dict(size=12, color=C_AMBER),
-                                            row=row, col=1)
-                    for i, (s, e, strand, motif_seq) in enumerate(ets_all):
-                        in_nfr = any(ns <= s <= ne for ns, ne in nfr_regions)
-                        y_pos  = 0.15 if strand == "+" else -0.15
-                        color  = C_NAVY if in_nfr else (C_RED if strand == "+" else C_PURPLE)
-                        sym    = "triangle-up" if strand == "+" else "triangle-down"
-                        fig_comp.add_trace(go.Scatter(
-                            x=[s], y=[y_pos], mode="markers",
-                            marker=dict(size=10, color=color, symbol=sym,
-                                        line=dict(width=1, color="white")),
-                            hovertext=f"ETS #{i+1} ({strand})<br>{motif_seq}<br>"
-                                      f"pos {s}<br>{'IN NFR' if in_nfr else 'outside NFR'}",
-                            hoverinfo="text", showlegend=False),
-                            row=row, col=1)
-                        fig_comp.add_annotation(
-                            x=s, y=y_pos + (0.25 if strand == "+" else -0.25),
-                            text=f"<b>#{i+1}</b>", showarrow=False,
-                            font=dict(size=8, color=color), row=row, col=1)
-                    fig_comp.update_yaxes(range=[-1.4, 1.4], visible=False, row=row, col=1)
-
-            fig_comp.update_xaxes(title_text=f"Position in {cand['label']} (bp)",
-                                  row=n_rows, col=1)
-            fig_comp.update_layout(
-                height=260 * n_rows, showlegend=False,
-                margin=dict(l=60, r=40, t=30, b=40),
-                font=dict(family="Inter, sans-serif", size=12),
-                paper_bgcolor="white", plot_bgcolor="white",
-            )
-            st.plotly_chart(fig_comp, use_container_width=True)
-
+        # ── ETS summary table ─────────────────────────────────────────────────
         if ets_all:
             n_in_nfr = sum(1 for s, e, _, _ in ets_all
                            if any(ns <= s <= ne for ns, ne in nfr_regions))
-            st.markdown(
-                f"**{len(ets_all)} ETS motifs** — "
-                f"{len(ets_all)/length*1000:.1f} motifs/kb — "
-                f"**{n_in_nfr} within NFR** (±200 bp of TSS)"
+            st.caption(
+                f"{len(ets_all)} ETS motifs · "
+                f"{len(ets_all)/length*1000:.2f} motifs/kb · "
+                f"{n_in_nfr} within ±200 bp of TSS (NFR)"
             )
-            ets_df = pd.DataFrame([
-                {"#": i+1, "Position": s, "Strand": strand, "Motif": ms,
-                 "In NFR": "Yes" if any(ns <= s <= ne for ns, ne in nfr_regions) else "No",
-                 "Genomic coord.": f"{cand['chrom']}:{cand['start']+s:,}"}
-                for i, (s, e, strand, ms) in enumerate(ets_all)
-            ])
-            st.dataframe(ets_df, use_container_width=True, hide_index=True)
-        else:
-            st.info("No ETS motifs (CGGAA[GA]) detected in this candidate sequence.")
+            with st.expander("ETS motif table"):
+                ets_df = pd.DataFrame([
+                    {"#": i+1, "Position (bp)": s, "Strand": strand, "Motif": ms,
+                     "In NFR": "Yes" if any(ns <= s <= ne for ns, ne in nfr_regions) else "No",
+                     "Genomic coord.": f"{cand['chrom']}:{cand['start']+s:,}"}
+                    for i, (s, e, strand, ms) in enumerate(ets_all)
+                ])
+                st.dataframe(ets_df, use_container_width=True, hide_index=True)
     else:
         st.warning("Sequence not available for this candidate.")
 
-    st.markdown("---")
+    # ══════════════════════════════════════════════════════════════════════════
+    # EPIGENOMIC PROFILE
+    # ══════════════════════════════════════════════════════════════════════════
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+    st.subheader("Epigenomic Profile")
+
+    col_radar, col_repr = st.columns(2)
+
+    with col_radar:
+        features_radar = ["H3K4me3_mean", "H3K27ac_mean", "H3K9ac_mean",
+                          "H3K36me3_mean", "DNase_mean", "repliseq_mean"]
+        labels_radar   = ["H3K4me3", "H3K27ac", "H3K9ac", "H3K36me3", "DNase", "Repli-seq"]
+        vals_cand, vals_ref = [], []
+        for f in features_radar:
+            fmin = scored[f].min(); fmax = scored[f].max()
+            rng  = fmax - fmin if fmax != fmin else 1
+            vals_cand.append((cand[f] - fmin) / rng)
+            vals_ref.append((ref[f].mean() - fmin) / rng)
+        fig_radar = go.Figure()
+        fig_radar.add_trace(go.Scatterpolar(
+            r=vals_cand + [vals_cand[0]], theta=labels_radar + [labels_radar[0]],
+            fill="toself", name=cand["label"],
+            line_color=P_AQUA, fillcolor=f"{P_AQUA}30",
+        ))
+        fig_radar.add_trace(go.Scatterpolar(
+            r=vals_ref + [vals_ref[0]], theta=labels_radar + [labels_radar[0]],
+            fill="toself", name="UCOE Reference",
+            line_color=P_ROSE, fillcolor=f"{P_ROSE}18", line_dash="dot",
+        ))
+        fig_radar.update_layout(
+            polar=dict(
+                radialaxis=dict(visible=True, range=[0, 1],
+                                tickfont=dict(size=8, color=P_GHOST)),
+                angularaxis=dict(tickfont=dict(size=11, color=P_SLATE)),
+                bgcolor=P_BG,
+            ),
+            title=dict(text="Active Marks (min-max normalised)",
+                       font=dict(size=12, color=P_INK), x=0.5),
+            height=340,
+            margin=dict(l=50, r=50, t=55, b=30),
+            legend=dict(x=0.5, y=-0.08, xanchor="center", orientation="h",
+                        font=dict(size=10, color=P_SLATE)),
+            paper_bgcolor=P_BG,
+            font=dict(family="Inter, Arial, sans-serif"),
+        )
+        st.plotly_chart(fig_radar, use_container_width=True)
+
+    with col_repr:
+        marks = {
+            "H3K27me3": cand["H3K27me3_mean"],
+            "H3K9me3":  cand["H3K9me3_mean"],
+            "Methylation": cand["meth_mean"],
+        }
+        ref_marks = {
+            "H3K27me3":    ref["H3K27me3_mean"].mean(),
+            "H3K9me3":     ref["H3K9me3_mean"].mean(),
+            "Methylation": ref["meth_mean"].mean(),
+        }
+        fig_repr = go.Figure()
+        fig_repr.add_trace(go.Bar(
+            x=list(marks.keys()), y=list(marks.values()),
+            name=cand["label"], marker_color=P_AQUA, opacity=0.82,
+        ))
+        fig_repr.add_trace(go.Bar(
+            x=list(ref_marks.keys()), y=list(ref_marks.values()),
+            name="UCOE Reference", marker_color=P_ROSE, opacity=0.72,
+        ))
+        apply_template(fig_repr, height=340)
+        fig_repr.update_layout(
+            barmode="group",
+            title=dict(text="Repressive Marks & Methylation",
+                       font=dict(size=12, color=P_INK)),
+            yaxis_title="Signal / %",
+        )
+        st.plotly_chart(fig_repr, use_container_width=True)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    # DINUCLEOTIDE & BIOPHYSICAL
+    # ══════════════════════════════════════════════════════════════════════════
+    struct_cand, struct_known, struct_ctrl = load_structural()
+    if struct_cand is not None:
+        struct_row = None
+        for _, sr in struct_cand.iterrows():
+            h = str(sr.get("header", ""))
+            if cand["gene1"] in h and cand["gene2"] in h:
+                struct_row = sr; break
+
+        if struct_row is not None:
+            ww_val      = struct_row["ww_fraction"]
+            ss_val      = struct_row["ss_fraction"]
+            entropy_val = struct_row["dinuc_entropy"]
+
+            with st.expander("Dinucleotide Composition & Biophysical Assessment"):
+                st.caption(
+                    "WW dinucleotides (AA, AT, TA, TT) reduce histone octamer affinity. "
+                    "SS (CC, CG, GC, GG) stabilise nucleosomes. "
+                    "Bars show this candidate vs. UCOE-candidate median and CpG-island controls."
+                )
+                fig_bio = make_subplots(
+                    rows=1, cols=2, horizontal_spacing=0.12,
+                    subplot_titles=("WW Fraction", "SS Fraction"),
+                )
+                for col_i, (val, ref_v, ctrl_v, color, label) in enumerate([
+                    (ww_val, REF_CAND_WW, REF_CTRL_WW, P_ROSE,  "WW"),
+                    (ss_val, REF_CAND_SS, REF_CTRL_SS, P_AQUA, "SS"),
+                ], 1):
+                    cats   = ["This candidate", "UCOE median", "Controls"]
+                    values = [val, ref_v, ctrl_v]
+                    clrs   = [color, f"{color}99", f"{P_GHOST}88"]
+                    fig_bio.add_trace(go.Bar(
+                        x=cats, y=values, marker_color=clrs, opacity=0.85,
+                        text=[f"{v:.3f}" for v in values],
+                        textposition="outside",
+                        textfont=dict(size=11, color=P_INK),
+                        showlegend=False,
+                    ), row=1, col=col_i)
+                apply_template(fig_bio, height=280)
+                fig_bio.update_layout(margin=dict(l=20, r=20, t=50, b=20))
+                fig_bio.update_yaxes(range=[0, max(ww_val, ss_val, REF_CTRL_WW, REF_CTRL_SS) * 1.35])
+                st.plotly_chart(fig_bio, use_container_width=True)
+
+                # Assessment badges
+                assessments = []
+                assessments.append(("WW",
+                    ("FAVORABLE", P_MINT) if ww_val >= REF_CAND_WW else
+                    ("MODERATE", P_PEACH) if ww_val >= REF_CTRL_WW else ("LOW", P_ROSE)))
+                assessments.append(("SS depletion",
+                    ("FAVORABLE", P_MINT) if ss_val <= REF_CAND_SS else
+                    ("MODERATE", P_PEACH) if ss_val <= REF_CTRL_SS else ("LOW", P_ROSE)))
+                assessments.append(("Entropy",
+                    ("FAVORABLE", P_MINT) if entropy_val >= 3.55 else ("MODERATE", P_PEACH)))
+
+                ba_cols = st.columns(3)
+                for (crit, (status, color)), col in zip(assessments, ba_cols):
+                    col.markdown(
+                        f"<div style='border:1px solid {P_RULE};border-top:3px solid {color};"
+                        f"border-radius:4px;padding:10px 12px;text-align:center'>"
+                        f"<div style='font-size:0.72rem;color:{P_GHOST};text-transform:uppercase;"
+                        f"letter-spacing:0.05em;margin-bottom:4px'>{crit}</div>"
+                        f"<div style='font-weight:700;color:{color};font-size:0.88rem'>{status}</div>"
+                        f"</div>",
+                        unsafe_allow_html=True,
+                    )
+
+                with st.expander("Full dinucleotide spectrum"):
+                    dinuc_cols   = [f"dinuc_{d}" for d in
+                                    ["AA","AC","AG","AT","CA","CC","CG","CT",
+                                     "GA","GC","GG","GT","TA","TC","TG","TT"]]
+                    dinuc_labels = [d.replace("dinuc_", "") for d in dinuc_cols]
+                    vals_this    = [struct_row[c] for c in dinuc_cols]
+                    ww_set = {"AA","AT","TA","TT"}; ss_set = {"CC","CG","GC","GG"}
+                    bar_colors_dn = [P_ROSE if d in ww_set else P_AQUA if d in ss_set
+                                     else P_GHOST for d in dinuc_labels]
+                    fig_dn = go.Figure()
+                    fig_dn.add_trace(go.Bar(
+                        x=dinuc_labels, y=vals_this, name="This candidate",
+                        marker_color=bar_colors_dn, opacity=0.80,
+                    ))
+                    if struct_ctrl is not None:
+                        ctrl_meds = [struct_ctrl[c].median() for c in dinuc_cols]
+                        fig_dn.add_trace(go.Scatter(
+                            x=dinuc_labels, y=ctrl_meds, mode="markers+lines",
+                            name="Controls (median)",
+                            line=dict(color=P_GHOST, width=1.5, dash="dash"),
+                            marker=dict(size=5),
+                        ))
+                    if struct_known is not None:
+                        known_means = [struct_known[c].mean() for c in dinuc_cols]
+                        fig_dn.add_trace(go.Scatter(
+                            x=dinuc_labels, y=known_means, mode="markers+lines",
+                            name="Known UCOEs (mean)",
+                            line=dict(color=P_PEACH, width=2),
+                            marker=dict(size=7, symbol="diamond"),
+                        ))
+                    apply_template(fig_dn, height=280)
+                    fig_dn.update_layout(yaxis_title="Proportion")
+                    st.plotly_chart(fig_dn, use_container_width=True)
+                    st.caption(
+                        f"WW (rose) = AA, AT, TA, TT — disfavour nucleosomes. "
+                        f"SS (aqua) = CC, CG, GC, GG — favour nucleosomes."
+                    )
+
+    # ── UCSC link ─────────────────────────────────────────────────────────────
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     ucsc_url = (f"https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&"
                 f"position={cand['chrom']}%3A{cand['start']}-{cand['end']}")
-    st.markdown(f"[View in UCSC Genome Browser ↗]({ucsc_url})")
+    st.markdown(
+        f"<a href='{ucsc_url}' target='_blank' style='color:{P_AQUA};font-size:0.85rem'>"
+        f"View locus in UCSC Genome Browser ↗</a>",
+        unsafe_allow_html=True,
+    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
