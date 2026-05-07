@@ -1086,7 +1086,9 @@ elif page == "Candidate Detail":
                 ], 1):
                     cats   = ["This candidate", "UCOE median", "Controls"]
                     values = [val, ref_v, ctrl_v]
-                    clrs   = [color, f"{color}99", f"{P_GHOST}88"]
+                    _alpha = {"WW": ("rgba(242,154,160,1)", "rgba(242,154,160,0.55)", "rgba(156,163,175,0.55)"),
+                              "SS": ("rgba(111,195,200,1)", "rgba(111,195,200,0.55)", "rgba(156,163,175,0.55)")}
+                    clrs   = list(_alpha[label])
                     fig_bio.add_trace(go.Bar(
                         x=cats, y=values, marker_color=clrs, opacity=0.85,
                         text=[f"{v:.3f}" for v in values],
