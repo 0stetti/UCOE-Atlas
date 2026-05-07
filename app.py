@@ -869,21 +869,19 @@ elif page == "Candidate Detail":
             (g1_x0, g1_x1, Y_G1, P_AQUA, cand["gene1"], "+"),
             (g2_x0, g2_x1, Y_G2, P_ROSE, cand["gene2"], "−"),
         ]:
-            # Body rectangle
+            # Thin horizontal line representing direction of transcription
             fig_ucsc.add_shape(
-                type="rect", x0=gx0, x1=gx1,
-                y0=gy - GH, y1=gy + GH,
-                fillcolor=gc, opacity=0.85, line=dict(width=0),
-                row=cur, col=1,
+                type="line", x0=gx0, x1=gx1, y0=gy, y1=gy,
+                line=dict(color=gc, width=2.5), row=cur, col=1,
             )
-            # TSS cap (thick vertical at transcription start)
+            # TSS cap — thick tick at transcription start site
             tss_cap = gx0 if strand == "+" else gx1
             fig_ucsc.add_shape(
                 type="line", x0=tss_cap, x1=tss_cap,
-                y0=gy - GH - 0.06, y1=gy + GH + 0.06,
-                line=dict(color=gc, width=3), row=cur, col=1,
+                y0=gy - 0.18, y1=gy + 0.18,
+                line=dict(color=gc, width=3.5), row=cur, col=1,
             )
-            # Arrowhead at 3′ end
+            # Arrowhead at the far (3′) end
             tip_x = gx1 if strand == "+" else gx0
             off   = length * 0.013
             fig_ucsc.add_annotation(
@@ -891,16 +889,16 @@ elif page == "Candidate Detail":
                 ax=tip_x, ay=gy,
                 xref="x", yref="y", axref="x", ayref="y",
                 text="", showarrow=True,
-                arrowhead=2, arrowsize=1.5, arrowwidth=3, arrowcolor=gc,
+                arrowhead=2, arrowsize=1.6, arrowwidth=3, arrowcolor=gc,
                 row=cur, col=1,
             )
-            # Strand label inside bar (small, white)
+            # Gene name above the arrow line
             bar_cx = (gx0 + gx1) / 2
             fig_ucsc.add_annotation(
-                x=bar_cx, y=gy,
-                text=f"{'→' if strand == '+' else '←'}  {gname}",
+                x=bar_cx, y=gy + 0.28,
+                text=f"<i><b>{gname}</b></i>",
                 showarrow=False,
-                font=dict(size=10, color="white", family="Arial"),
+                font=dict(size=10, color=gc, family="Arial"),
                 row=cur, col=1,
             )
 
