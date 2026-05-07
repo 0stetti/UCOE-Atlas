@@ -29,163 +29,191 @@ st.set_page_config(
 # ══════════════════════════════════════════════════════════════════════════════
 # DESIGN SYSTEM — colors, CSS, Plotly template
 # ══════════════════════════════════════════════════════════════════════════════
-C_NAVY   = "#1C2B4A"
-C_BLUE   = "#2C5282"
-C_TEAL   = "#2B7A78"
-C_GREEN  = "#276749"
-C_AMBER  = "#B7791F"
-C_RED    = "#9B2335"
-C_PURPLE = "#553C9A"
-C_GRAY   = "#4A5568"
-C_BGCARD = "#F7F8FA"
-C_BORDER = "#E2E8F0"
+# ── Magazine palette (mirrors magazine_style.py) ─────────────────────────────
+P_AQUA     = "#6FC3C8"   # primary data color
+P_ROSE     = "#F29AA0"   # secondary
+P_PEACH    = "#F6C47A"   # tertiary / accent
+P_SKY      = "#88BFEB"   # quaternary
+P_LAVENDER = "#C0A8DC"   # quinary
+P_MINT     = "#8FCFA8"   # senary
+P_INK      = "#1C1E26"   # near-black — titles
+P_SLATE    = "#5D6470"   # mid-grey — body / labels
+P_GHOST    = "#9CA3AF"   # light grey — captions
+P_GRID     = "#E9ECEF"   # gridlines
+P_RULE     = "#D1D5DB"   # borders / spines
+P_BG       = "#FFFFFF"   # page background
+P_BG_SUB   = "#F8F9FB"   # sidebar / card background
+P_CREAM    = "#FFF8E8"   # warm cream callout
 
-PALETTE = [C_BLUE, C_TEAL, C_AMBER, C_GREEN, C_RED, C_PURPLE, C_GRAY,
-           "#2A4365", "#234E52", "#744210", "#1A4731", "#44337A"]
+# Aliases kept for backward compat with existing page code
+C_NAVY   = P_INK
+C_BLUE   = P_AQUA
+C_TEAL   = P_AQUA
+C_GREEN  = P_MINT
+C_AMBER  = P_PEACH
+C_RED    = P_ROSE
+C_PURPLE = P_LAVENDER
+C_GRAY   = P_SLATE
+C_BGCARD = P_BG
+C_BORDER = P_RULE
+
+PALETTE = [P_AQUA, P_ROSE, P_PEACH, P_SKY, P_LAVENDER, P_MINT,
+           "#5BADB3", "#E8868C", "#E3AD5E", "#6FAAD8", "#A88EC8", "#72B88E"]
 
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
 
 html, body, [class*="css"] {
-    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    font-family: 'Inter', Arial, Helvetica, sans-serif;
+    background-color: #FFFFFF;
 }
 
 /* ── Sidebar ── */
 [data-testid="stSidebar"] {
-    background: #F7F8FA !important;
-    border-right: 1px solid #E2E8F0 !important;
+    background: #F8F9FB !important;
+    border-right: 1px solid #D1D5DB !important;
 }
-[data-testid="stSidebar"] * { color: #2D3748 !important; }
+[data-testid="stSidebar"] * { color: #1C1E26 !important; }
 [data-testid="stSidebar"] .stRadio label {
-    font-size: 0.88rem !important;
-    padding: 6px 0 !important;
-    color: #4A5568 !important;
+    font-size: 0.87rem !important;
+    color: #5D6470 !important;
 }
-[data-testid="stSidebar"] hr { border-color: #E2E8F0 !important; }
+[data-testid="stSidebar"] hr { border-color: #D1D5DB !important; }
 
 /* ── Metric cards ── */
 [data-testid="metric-container"] {
     background: #FFFFFF;
-    border: 1px solid #E2E8F0;
-    border-radius: 8px;
-    padding: 16px 20px !important;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+    border: 1px solid #D1D5DB;
+    border-radius: 6px;
+    padding: 14px 18px !important;
 }
 [data-testid="stMetricValue"] {
-    font-size: 1.9rem !important;
+    font-size: 1.8rem !important;
     font-weight: 700 !important;
-    color: #1C2B4A !important;
+    color: #1C1E26 !important;
 }
 [data-testid="stMetricLabel"] {
     font-weight: 500 !important;
-    color: #718096 !important;
-    font-size: 0.8rem !important;
-    letter-spacing: 0.04em !important;
+    color: #5D6470 !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.05em !important;
     text-transform: uppercase !important;
 }
 
 /* ── Page titles ── */
-h1 { color: #1C2B4A !important; font-weight: 700 !important; letter-spacing: -0.02em !important; }
-h2 { color: #2D3748 !important; font-weight: 600 !important; }
-h3 { color: #4A5568 !important; font-weight: 600 !important; }
+h1 { color: #1C1E26 !important; font-weight: 700 !important; letter-spacing: -0.02em !important; }
+h2 { color: #1C1E26 !important; font-weight: 600 !important; }
+h3 { color: #5D6470 !important; font-weight: 600 !important; }
 
 /* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 4px;
-    border-bottom: 1px solid #E2E8F0;
+    gap: 2px;
+    border-bottom: 1px solid #D1D5DB;
+    background: transparent;
 }
 .stTabs [data-baseweb="tab"] {
     font-weight: 500;
-    font-size: 0.88rem;
-    color: #718096;
-    padding: 8px 18px;
-    border-radius: 6px 6px 0 0;
+    font-size: 0.87rem;
+    color: #9CA3AF;
+    padding: 8px 16px;
+    border-radius: 4px 4px 0 0;
+    background: transparent;
 }
 .stTabs [aria-selected="true"] {
-    color: #1C2B4A !important;
-    background: #EDF2F7 !important;
-    border-bottom: 2px solid #2C5282 !important;
+    color: #1C1E26 !important;
+    background: #F8F9FB !important;
+    border-bottom: 2px solid #6FC3C8 !important;
     font-weight: 600 !important;
 }
 
 /* ── Dataframe ── */
-[data-testid="stDataFrame"] { border-radius: 6px; overflow: hidden; border: 1px solid #E2E8F0; }
+[data-testid="stDataFrame"] {
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid #D1D5DB;
+}
 
 /* ── Expander ── */
 .streamlit-expanderHeader {
     font-weight: 600 !important;
-    color: #2D3748 !important;
-    background: #F7F8FA !important;
-    border-radius: 6px !important;
+    color: #1C1E26 !important;
+    background: #F8F9FB !important;
+    border-radius: 4px !important;
+    border: 1px solid #E9ECEF !important;
 }
 
 /* ── Buttons ── */
 .stDownloadButton button {
-    background: #2C5282 !important;
-    color: white !important;
-    border-radius: 6px !important;
-    font-weight: 500 !important;
+    background: #6FC3C8 !important;
+    color: #1C1E26 !important;
+    border-radius: 4px !important;
+    font-weight: 600 !important;
     border: none !important;
 }
 
-/* ── Info/success/warning ── */
-.stInfo, .stSuccess, .stWarning, .stError {
-    border-radius: 6px !important;
-}
+/* ── Info / callouts ── */
+.stInfo  { border-radius: 4px !important; background: #FFF8E8 !important; }
+.stSuccess, .stWarning, .stError { border-radius: 4px !important; }
+
+/* ── Divider ── */
+hr { border-color: #E9ECEF !important; }
 </style>
 """, unsafe_allow_html=True)
 
 
 def apply_template(fig, height=420, margin=None):
-    m = margin or dict(l=60, r=40, t=50, b=50)
+    """Plotly template matching magazine_style: white bg, dotted y-grid, pastel palette."""
+    m = margin or dict(l=64, r=40, t=52, b=52)
     fig.update_layout(
         template="plotly_white",
-        font=dict(family="Inter, -apple-system, sans-serif", size=13, color="#37474F"),
-        plot_bgcolor="white",
-        paper_bgcolor="white",
+        font=dict(family="Inter, Arial, sans-serif", size=12, color=P_SLATE),
+        plot_bgcolor=P_BG,
+        paper_bgcolor=P_BG,
         margin=m,
         height=height,
+        colorway=PALETTE,
         legend=dict(
-            bgcolor="rgba(255,255,255,0.95)",
-            bordercolor="#E3E8F0",
-            borderwidth=1,
-            font=dict(size=12),
+            bgcolor="rgba(0,0,0,0)",
+            borderwidth=0,
+            font=dict(size=11, color=P_SLATE),
         ),
     )
     fig.update_xaxes(
-        showgrid=True, gridcolor="#F0F2F5", gridwidth=1,
-        showline=True, linecolor="#CFD8DC", linewidth=1,
-        tickfont=dict(size=11),
+        showgrid=False,
+        showline=True, linecolor=P_RULE, linewidth=0.8,
+        tickfont=dict(size=10, color=P_SLATE),
+        tickcolor=P_GHOST,
     )
     fig.update_yaxes(
-        showgrid=True, gridcolor="#F0F2F5", gridwidth=1,
-        showline=True, linecolor="#CFD8DC", linewidth=1,
-        tickfont=dict(size=11),
+        showgrid=True, gridcolor=P_GRID, gridwidth=0.7,
+        griddash="dot",
+        showline=True, linecolor=P_RULE, linewidth=0.8,
+        tickfont=dict(size=10, color=P_SLATE),
+        tickcolor=P_GHOST,
     )
     return fig
 
 
-def kpi_card(title, value, subtitle="", color=C_BLUE):
+def kpi_card(title, value, subtitle="", color=P_AQUA):
     return f"""
-    <div style="background:#FFFFFF; border:1px solid #E2E8F0;
-                border-left:3px solid {color};
-                border-radius:8px; padding:18px 20px; height:100%;
-                box-shadow:0 1px 3px rgba(0,0,0,0.04);">
-      <div style="font-size:1.85rem;font-weight:700;color:#1C2B4A;line-height:1.1">{value}</div>
-      <div style="font-weight:600;color:#2D3748;margin:5px 0 2px;font-size:0.9rem">{title}</div>
-      <div style="color:#718096;font-size:0.8rem">{subtitle}</div>
+    <div style="background:{P_BG};border:1px solid {P_RULE};
+                border-left:3px solid {color};border-radius:4px;
+                padding:16px 18px;height:100%">
+      <div style="font-size:1.75rem;font-weight:700;color:{P_INK};line-height:1.1">{value}</div>
+      <div style="font-weight:600;color:{P_INK};margin:5px 0 3px;font-size:0.88rem">{title}</div>
+      <div style="color:{P_SLATE};font-size:0.78rem">{subtitle}</div>
     </div>"""
 
 
 def finding_card(icon, title, value, description, color):
     return f"""
-    <div style="background:#FFFFFF; border:1px solid #E2E8F0;
-                border-top:3px solid {color}; border-radius:8px;
-                padding:20px 22px; box-shadow:0 1px 4px rgba(0,0,0,0.05); height:100%">
-      <div style="font-size:1.35rem;font-weight:700;color:{color};margin-bottom:3px">{value}</div>
-      <div style="font-weight:600;color:#2D3748;margin-bottom:8px;font-size:0.9rem">{title}</div>
-      <div style="color:#718096;font-size:0.83rem;line-height:1.55">{description}</div>
+    <div style="background:{P_BG};border:1px solid {P_RULE};
+                border-top:3px solid {color};border-radius:4px;
+                padding:18px 20px;height:100%">
+      <div style="font-size:1.25rem;font-weight:700;color:{P_INK};margin-bottom:2px">{value}</div>
+      <div style="font-weight:600;color:{P_INK};margin-bottom:8px;font-size:0.88rem">{title}</div>
+      <div style="color:{P_SLATE};font-size:0.82rem;line-height:1.6">{description}</div>
     </div>"""
 
 
@@ -348,10 +376,10 @@ FEATURE_LABELS = {
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
 st.sidebar.markdown(
-    "<div style='padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid #E2E8F0'>"
-    "<div style='font-size:1.2rem;font-weight:700;color:#1C2B4A;letter-spacing:-0.01em'>UCOE Atlas</div>"
-    "<div style='font-size:0.73rem;color:#718096;margin-top:2px'>Human Genome · GRCh38</div>"
-    "</div>",
+    f"<div style='padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid {P_RULE}'>"
+    f"<div style='font-size:1.15rem;font-weight:700;color:{P_INK};letter-spacing:-0.01em'>UCOE Atlas</div>"
+    f"<div style='font-size:0.72rem;color:{P_GHOST};margin-top:2px'>Human Genome · GRCh38</div>"
+    f"</div>",
     unsafe_allow_html=True,
 )
 
@@ -364,18 +392,18 @@ page = st.sidebar.radio(
 )
 
 st.sidebar.markdown(
-    "<div style='margin-top:28px;padding-top:16px;border-top:1px solid #E2E8F0'>"
-    "<div style='font-size:0.7rem;font-weight:600;color:#A0AEC0;letter-spacing:0.06em;"
-    "text-transform:uppercase;margin-bottom:10px'>Reference UCOEs</div>"
-    "<div style='font-size:0.8rem;color:#4A5568;line-height:2'>"
-    "A2UCOE &nbsp;<span style='color:#A0AEC0'>rank 27</span><br>"
-    "TBP/PSMB1 &nbsp;<span style='color:#A0AEC0'>rank 121</span><br>"
-    "SRF-UCOE &nbsp;<span style='color:#A0AEC0'>rank 188</span>"
-    "</div>"
-    "<div style='margin-top:20px;font-size:0.72rem;color:#A0AEC0;line-height:1.7'>"
-    "E.R. Ostetti · A.M. Moro<br>T.M. Manieri<br>USP / Instituto Butantan"
-    "</div>"
-    "</div>",
+    f"<div style='margin-top:28px;padding-top:14px;border-top:1px solid {P_RULE}'>"
+    f"<div style='font-size:0.68rem;font-weight:600;color:{P_GHOST};letter-spacing:0.07em;"
+    f"text-transform:uppercase;margin-bottom:8px'>Reference UCOEs</div>"
+    f"<div style='font-size:0.8rem;color:{P_SLATE};line-height:2.1'>"
+    f"A2UCOE &nbsp;<span style='color:{P_GHOST}'>rank 27</span><br>"
+    f"TBP/PSMB1 &nbsp;<span style='color:{P_GHOST}'>rank 121</span><br>"
+    f"SRF-UCOE &nbsp;<span style='color:{P_GHOST}'>rank 188</span>"
+    f"</div>"
+    f"<div style='margin-top:18px;font-size:0.71rem;color:{P_GHOST};line-height:1.7'>"
+    f"E.R. Ostetti · A.M. Moro<br>T.M. Manieri<br>USP / Instituto Butantan"
+    f"</div>"
+    f"</div>",
     unsafe_allow_html=True,
 )
 
@@ -386,7 +414,7 @@ st.sidebar.markdown(
 if page == "Overview":
     st.title("UCOE Atlas")
     st.markdown(
-        "<p style='font-size:1.1rem;color:#546E7A;margin-top:-10px;margin-bottom:24px'>"
+        f"<p style='font-size:1.05rem;color:{P_SLATE};margin-top:-8px;margin-bottom:28px'>"
         "A computational atlas of Ubiquitous Chromatin Opening Element candidates "
         "in the human genome — GRCh38 · ENCODE/Roadmap Epigenomics · GENCODE v44</p>",
         unsafe_allow_html=True,
@@ -460,7 +488,7 @@ if page == "Overview":
         marker_color=bar_colors, opacity=0.85,
         text=[f"<b>{r:,}</b>" for r in retained],
         textposition="outside",
-        textfont=dict(size=13, color="#0D1B4B"),
+        textfont=dict(size=13, color="#1C1E26"),
         hovertemplate="<b>%{y}</b><br>Retained: %{x:,}<extra></extra>",
         name="Retained",
     ))
@@ -518,7 +546,7 @@ if page == "Overview":
         <div style="background:{C_BGCARD};border:1px solid {C_BORDER};
                     border-radius:10px;padding:20px;margin-top:8px">
         <p style="margin:0 0 12px;font-weight:600;color:{C_NAVY}">Composite Score</p>
-        <p style="color:#546E7A;font-size:0.88rem;line-height:1.7;margin:0">
+        <p style="color:#5D6470;font-size:0.88rem;line-height:1.7;margin:0">
         <b>S = 0.4 · D̃<sub>M</sub> + 0.3 · cos̃ + 0.3 · P̃</b><br><br>
         Each metric is min-max normalised to [0, 1].<br><br>
         <b style="color:{C_BLUE}">Mahalanobis (×0.4)</b><br>
@@ -1258,7 +1286,7 @@ elif page == "PCA Explorer":
 
     st.title("PCA Explorer — Epigenomic Feature Space")
     st.markdown(
-        "<p style='color:#546E7A'>Principal component analysis of the 21-variable epigenomic "
+        "<p style='color:#5D6470'>Principal component analysis of the 21-variable epigenomic "
         "feature space. Each point is one of the 599 candidates.</p>",
         unsafe_allow_html=True,
     )
@@ -1341,7 +1369,7 @@ elif page == "PCA Explorer":
 elif page == "Validation & Robustness":
     st.title("Validation & Robustness")
     st.markdown(
-        "<p style='color:#546E7A;font-size:1.05rem'>"
+        "<p style='color:#5D6470;font-size:1.05rem'>"
         "Two independent analyses assess whether the composite score is "
         "reliable and stable across methodological choices.</p>",
         unsafe_allow_html=True,
@@ -1554,7 +1582,7 @@ elif page == "Validation & Robustness":
 elif page == "Methods & Glossary":
     st.title("Methods & Glossary")
     st.markdown(
-        "<p style='color:#546E7A'>Technical description of the pipeline, scoring metrics, "
+        "<p style='color:#5D6470'>Technical description of the pipeline, scoring metrics, "
         "and epigenomic features used in candidate identification and ranking.</p>",
         unsafe_allow_html=True,
     )
@@ -1675,7 +1703,7 @@ elif page == "Methods & Glossary":
             <div style="font-weight:700;color:{C_NAVY};margin-bottom:4px">{title}</div>
             <div style="font-size:0.82rem;color:{C_TEAL};font-weight:600;
                         margin-bottom:8px">{weight}</div>
-            <div style="color:#546E7A;font-size:0.9rem;line-height:1.6">{desc}</div>
+            <div style="color:#5D6470;font-size:0.9rem;line-height:1.6">{desc}</div>
             </div>""", unsafe_allow_html=True)
 
     with tab_math:
