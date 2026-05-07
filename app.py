@@ -1021,15 +1021,27 @@ elif page == "Candidate Detail":
 
         # ── Panel labels (A/B/C/D) on the left + per-panel legends on the right ─
         panel_letters = "ABCD"
-        row_positions = [1 - (i + 0.5) / n_rows for i in range(n_rows)]
 
-        # Panel letter labels (left)
-        for i, (letter, yp) in enumerate(zip(panel_letters[:n_rows], row_positions)):
+        # Compute the exact top edge of each subplot in paper coordinates.
+        # Plotly stacks subplots from top to bottom with vertical_spacing=0.02.
+        h_avail = 1.0 - 0.02 * (n_rows - 1)
+        panel_tops, y_cursor = [], 1.0
+        for i in range(n_rows):
+            panel_tops.append(y_cursor)
+            y_cursor -= h_avail * row_h[i] + 0.02
+
+        # Centre of each panel (for right-side legend y-anchoring)
+        row_positions = [panel_tops[i] - h_avail * row_h[i] / 2
+                         for i in range(n_rows)]
+
+        # Panel letter: top-left corner of each panel, above y-axis labels
+        for i, letter in enumerate(panel_letters[:n_rows]):
             fig_ucsc.add_annotation(
-                x=-0.04, y=yp, xref="paper", yref="paper",
+                x=-0.04, y=panel_tops[i] - 0.005,
+                xref="paper", yref="paper",
                 text=f"<b>{letter}</b>",
                 showarrow=False, font=dict(size=13, color=P_INK),
-                xanchor="right", yanchor="middle",
+                xanchor="right", yanchor="top",
             )
 
         # Per-panel legend annotations (right side, one item per line)
