@@ -485,10 +485,11 @@ if page == "Overview":
 
     fig_funnel.add_trace(go.Bar(
         y=labels, x=retained, orientation="h",
-        marker_color=bar_colors, opacity=0.85,
-        text=[f"<b>{r:,}</b>" for r in retained],
-        textposition="outside",
-        textfont=dict(size=13, color="#1C1E26"),
+        marker_color=bar_colors, opacity=0.82,
+        text=[f"  {r:,}" for r in retained],
+        textposition="inside",
+        insidetextanchor="end",
+        textfont=dict(size=13, color="white", family="Inter, Arial, sans-serif"),
         hovertemplate="<b>%{y}</b><br>Retained: %{x:,}<extra></extra>",
         name="Retained",
     ))
@@ -496,17 +497,17 @@ if page == "Overview":
     for i, (label, ret, elim, _) in enumerate(filter_steps):
         if elim > 0:
             fig_funnel.add_annotation(
-                x=ret + 5, y=i,
+                x=ret + 22, y=i,
                 text=f"−{elim}",
                 showarrow=False,
-                font=dict(size=11, color=C_RED),
+                font=dict(size=11, color=P_ROSE),
                 xanchor="left",
             )
 
     apply_template(fig_funnel, height=280, margin=dict(l=280, r=80, t=20, b=40))
     fig_funnel.update_layout(showlegend=False, xaxis_title="Candidates retained")
-    fig_funnel.update_xaxes(range=[0, 950])
-    fig_funnel.update_yaxes(autorange="reversed", tickfont=dict(size=12))
+    fig_funnel.update_xaxes(range=[0, 900], showticklabels=False, showgrid=False, showline=False)
+    fig_funnel.update_yaxes(autorange="reversed", tickfont=dict(size=12, color=P_SLATE))
     st.plotly_chart(fig_funnel, use_container_width=True)
 
     st.markdown("---")
