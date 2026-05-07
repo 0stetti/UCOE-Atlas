@@ -53,15 +53,16 @@ html, body, [class*="css"] {
 
 /* ── Sidebar ── */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0D1B4B 0%, #1A237E 100%) !important;
+    background: #FFFFFF !important;
+    border-right: 1px solid #E3E8F0 !important;
 }
-[data-testid="stSidebar"] * { color: #E8EAF6 !important; }
+[data-testid="stSidebar"] * { color: #1a1a2e !important; }
 [data-testid="stSidebar"] .stSelectbox > div > div {
-    background: rgba(255,255,255,0.08) !important;
-    border-color: rgba(255,255,255,0.2) !important;
-    color: white !important;
+    background: #F8F9FC !important;
+    border-color: #C5CAE9 !important;
+    color: #1a1a2e !important;
 }
-[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.15) !important; }
+[data-testid="stSidebar"] hr { border-color: #E3E8F0 !important; }
 
 /* ── Metric cards ── */
 [data-testid="metric-container"] {
@@ -86,8 +87,8 @@ html, body, [class*="css"] {
 
 /* ── Page titles ── */
 h1 { color: #0D1B4B !important; font-weight: 700 !important; letter-spacing: -0.02em !important; }
-h2 { color: #1A237E !important; font-weight: 600 !important; }
-h3 { color: #1565C0 !important; font-weight: 600 !important; }
+h2 { color: #263238 !important; font-weight: 600 !important; }
+h3 { color: #37474F !important; font-weight: 600 !important; }
 
 /* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] {
@@ -344,25 +345,83 @@ FEATURE_LABELS = {
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
 st.sidebar.markdown(
-    "<h1 style='font-size:1.6rem;font-weight:700;margin-bottom:2px'>🧬 UCOE Atlas</h1>"
-    "<p style='font-size:0.8rem;opacity:0.7;margin-top:0'>Interactive UCOE Candidate Explorer</p>",
+    """
+    <div style='padding:4px 0 12px 0;border-bottom:2px solid #E3E8F0;margin-bottom:16px'>
+      <div style='display:flex;align-items:center;gap:10px;margin-bottom:4px'>
+        <span style='font-size:1.7rem'>🧬</span>
+        <div>
+          <div style='font-size:1.25rem;font-weight:700;color:#0D1B4B;line-height:1.1'>UCOE Atlas</div>
+          <div style='font-size:0.72rem;color:#607D8B;font-weight:500;letter-spacing:0.04em;text-transform:uppercase'>Human Genome · GRCh38</div>
+        </div>
+      </div>
+    </div>
+    """,
     unsafe_allow_html=True,
 )
-st.sidebar.markdown("---")
 
 page = st.sidebar.selectbox(
-    "Navigation",
+    "Navigate to",
     ["Overview", "Candidate Explorer", "Candidate Detail",
      "PCA Explorer", "Validation & Robustness",
      "Methods & Glossary", "Downloads", "About"],
 )
 
-st.sidebar.markdown("---")
 st.sidebar.markdown(
-    "<p style='font-size:0.78rem;opacity:0.65;line-height:1.6'>"
+    """
+    <div style='margin:20px 0 4px 0;font-size:0.7rem;font-weight:600;color:#90A4AE;
+                letter-spacing:0.08em;text-transform:uppercase'>Pipeline Summary</div>
+    """,
+    unsafe_allow_html=True,
+)
+
+def _sb_stat(label, value, color="#0D1B4B"):
+    return (
+        f"<div style='display:flex;justify-content:space-between;align-items:center;"
+        f"padding:7px 10px;background:#F8F9FC;border-radius:7px;margin-bottom:5px;"
+        f"border-left:3px solid {color}'>"
+        f"<span style='font-size:0.8rem;color:#546E7A'>{label}</span>"
+        f"<span style='font-size:0.88rem;font-weight:700;color:{color}'>{value}</span>"
+        f"</div>"
+    )
+
+st.sidebar.markdown(
+    _sb_stat("Initial candidates", "789", "#607D8B")
+    + _sb_stat("After Phase I filters", "599", C_BLUE)
+    + _sb_stat("Stable in sensitivity", "7 (100%)", C_GREEN)
+    + _sb_stat("Top candidate score", "0.787", C_TEAL),
+    unsafe_allow_html=True,
+)
+
+st.sidebar.markdown(
+    """
+    <div style='margin:20px 0 4px 0;font-size:0.7rem;font-weight:600;color:#90A4AE;
+                letter-spacing:0.08em;text-transform:uppercase'>Reference UCOEs</div>
+    """,
+    unsafe_allow_html=True,
+)
+
+def _sb_ucoe(name, genes, rank):
+    return (
+        f"<div style='padding:6px 10px;background:#F0F4FF;border-radius:7px;"
+        f"margin-bottom:5px;border-left:3px solid {C_BLUE}'>"
+        f"<div style='font-size:0.78rem;font-weight:600;color:#1565C0'>{name}</div>"
+        f"<div style='font-size:0.72rem;color:#546E7A'>{genes} · rank #{rank}</div>"
+        f"</div>"
+    )
+
+st.sidebar.markdown(
+    _sb_ucoe("A2UCOE", "HNRNPA2B1/CBX3", 27)
+    + _sb_ucoe("TBP-UCOE", "TBP/PSMB1", 121)
+    + _sb_ucoe("SRF-UCOE", "SURF1/SURF2", 188),
+    unsafe_allow_html=True,
+)
+
+st.sidebar.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
+st.sidebar.markdown(
+    "<p style='font-size:0.73rem;color:#90A4AE;line-height:1.7;border-top:1px solid #E3E8F0;padding-top:12px'>"
     "E.R. Ostetti &nbsp;·&nbsp; A.M. Moro<br>"
     "T.M. Manieri<br>"
-    "USP / Instituto Butantan</p>",
+    "<span style='color:#B0BEC5'>USP / Instituto Butantan</span></p>",
     unsafe_allow_html=True,
 )
 
