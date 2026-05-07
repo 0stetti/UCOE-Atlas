@@ -870,16 +870,18 @@ elif page == "Candidate Detail":
         # ── Panel B: PhyloP (if available) ───────────────────────────────────
         if has_cons:
             _shade_ets(fig_ucsc, ets_all, cur)
+            pos_vals = np.maximum(phylop_s, 0)
+            neg_vals = np.minimum(phylop_s, 0)
             fig_ucsc.add_trace(go.Scatter(
-                x=pos_full[phylop_s > 0], y=phylop_s[phylop_s > 0],
+                x=pos_full, y=pos_vals,
                 mode="lines", name="Conserved",
-                line=dict(color=P_AQUA, width=0),
+                line=dict(color=P_AQUA, width=0.6),
                 fill="tozeroy", fillcolor="rgba(111,195,200,0.70)",
             ), row=cur, col=1)
             fig_ucsc.add_trace(go.Scatter(
-                x=pos_full[phylop_s <= 0], y=phylop_s[phylop_s <= 0],
+                x=pos_full, y=neg_vals,
                 mode="lines", name="Accelerated",
-                line=dict(color=P_ROSE, width=0),
+                line=dict(color=P_ROSE, width=0.6),
                 fill="tozeroy", fillcolor="rgba(242,154,160,0.60)",
             ), row=cur, col=1)
             fig_ucsc.add_hline(y=0, line_color=P_GHOST, line_width=0.8,
