@@ -767,13 +767,13 @@ elif page == "Candidate Detail":
             (max(0, tss2 - 200), min(length, tss2 + 200)),
         ]
 
-        # GC% and CpG density (100 bp window, 50 bp step)
-        gc_pos, gc_vals, cpg_vals = [], [], []
-        for i in range(0, length - WINDOW + 1, WINDOW // 2):
-            w = seq[i:i + WINDOW]
-            gc_pos.append(i + WINDOW // 2)
-            gc_vals.append((w.count("G") + w.count("C")) / len(w) * 100)
-            cpg_vals.append(w.count("CG"))
+        # GC% and CpG density — per-base convolution (matches generate_smim27 script)
+        seq_pos     = np.arange(length)
+        gc_arr      = np.array([1.0 if c in "GC" else 0.0 for c in seq])
+        gc_vals     = np.convolve(gc_arr, np.ones(WINDOW) / WINDOW, mode="same") * 100
+        cpg_arr     = np.array([1.0 if i < length - 1 and seq[i] == "C" and seq[i+1] == "G"
+                                 else 0.0 for i in range(length)])
+        cpg_vals    = np.convolve(cpg_arr, np.ones(WINDOW), mode="same")
 
         # PhyloP
         cons_key   = f"{cand['gene1']}_{cand['gene2']}"
@@ -894,20 +894,20 @@ elif page == "Candidate Detail":
 
         # ── Panel C: GC% + CpG density ───────────────────────────────────────
         _shade_ets(fig_ucsc, ets_all, cur)
-        # GC% filled area
+        # GC% — smooth filled area, full coverage (per-base convolution)
         fig_ucsc.add_trace(go.Scatter(
-            x=gc_pos, y=gc_vals, mode="lines", name="GC %",
+            x=seq_pos, y=gc_vals, mode="lines", name="GC %",
             line=dict(color=P_SKY, width=1.8),
-            fill="tozeroy", fillcolor="rgba(136,191,235,0.20)",
+            fill="tozeroy", fillcolor="rgba(136,191,235,0.22)",
         ), row=cur, col=1)
         fig_ucsc.add_hline(y=50, line_color=P_GHOST, line_width=0.7,
                            line_dash="dot", row=cur, col=1)
-        # CpG bars on secondary-ish (scaled to gc axis)
-        cpg_max = max(cpg_vals) if cpg_vals else 1
-        cpg_scaled = [v / cpg_max * 80 for v in cpg_vals]
+        # CpG — thin bars (width=1 matches per-base resolution, lavender fill)
+        cpg_max    = float(cpg_vals.max()) if cpg_vals.max() > 0 else 1.0
+        cpg_scaled = cpg_vals / cpg_max * 95  # scale to same y-axis as GC%
         fig_ucsc.add_trace(go.Bar(
-            x=gc_pos, y=cpg_scaled, name="CpG density",
-            marker_color=P_LAVENDER, opacity=0.65, width=WINDOW * 0.4,
+            x=seq_pos, y=cpg_scaled, name="CpG / window",
+            marker_color="rgba(192,168,220,0.62)", width=1,
         ), row=cur, col=1)
         fig_ucsc.update_yaxes(
             title_text="GC %", title_font=dict(size=9, color=P_SLATE),
