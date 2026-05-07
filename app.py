@@ -783,6 +783,34 @@ elif page == "Candidate Detail":
                                  else 0.0 for i in range(length)])
         cpg_vals    = np.convolve(cpg_arr, np.ones(WINDOW), mode="same")
 
+        # CpG island detection — Gardiner-Garden & Frommer (1987)
+        # Criteria per 200 bp window: GC ≥ 50 %, obs/exp CpG ≥ 0.60
+        def find_cpg_islands(s, win=200, gc_thr=0.50, oe_thr=0.60, min_len=200):
+            flagged = np.zeros(len(s), dtype=bool)
+            for i in range(len(s) - win + 1):
+                w = s[i:i + win]
+                gc = (w.count("G") + w.count("C")) / win
+                if gc < gc_thr:
+                    continue
+                nc, ng, ncg = w.count("C"), w.count("G"), w.count("CG")
+                if nc == 0 or ng == 0:
+                    continue
+                if (ncg * win) / (nc * ng) >= oe_thr:
+                    flagged[i:i + win] = True
+            islands, in_isl, s0 = [], False, 0
+            for i, f in enumerate(flagged):
+                if f and not in_isl:
+                    s0, in_isl = i, True
+                elif not f and in_isl:
+                    if i - s0 >= min_len:
+                        islands.append((s0, i))
+                    in_isl = False
+            if in_isl and len(s) - s0 >= min_len:
+                islands.append((s0, len(s)))
+            return islands
+
+        cpg_islands = find_cpg_islands(seq)
+
         # PhyloP + PhastCons
         cons_key = f"{cand['gene1']}_{cand['gene2']}"
         has_cons       = cons_key in conservation_data
@@ -983,6 +1011,14 @@ elif page == "Candidate Detail":
         ), row=cur, col=1)
         fig_ucsc.add_hline(y=50, line_color=P_GHOST, line_width=0.7,
                            line_dash="dot", row=cur, col=1)
+        # CpG island shading (below data so bars remain visible)
+        for isl_s, isl_e in cpg_islands:
+            fig_ucsc.add_vrect(
+                x0=isl_s, x1=isl_e,
+                fillcolor="rgba(143,207,168,0.28)",
+                line=dict(color="rgba(143,207,168,0.80)", width=1),
+                row=cur, col=1,
+            )
         cpg_max    = float(cpg_vals.max()) if cpg_vals.max() > 0 else 1.0
         cpg_scaled = cpg_vals / cpg_max * 95
         fig_ucsc.add_trace(go.Bar(
@@ -1085,11 +1121,14 @@ elif page == "Candidate Detail":
                 (P_MINT,   "■  PhastCons probability"),
             ], pidx); pidx += 1
 
-        # Panel D — GC% / CpG
-        _rleg(fig_ucsc, [
+        # Panel D — GC% / CpG / CpG islands
+        d_legend = [
             (P_SKY,      "—  GC content (%)"),
             (P_LAVENDER, "■  CpG dinucleotide density"),
-        ], pidx)
+        ]
+        if cpg_islands:
+            d_legend.append((P_MINT, "■  CpG island (GC≥50%, o/e≥0.6)"))
+        _rleg(fig_ucsc, d_legend, pidx)
 
         st.plotly_chart(fig_ucsc, use_container_width=True)
 
