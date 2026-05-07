@@ -987,7 +987,7 @@ elif page == "Candidate Detail":
         for s, e, _, _ in ets_all:
             fig_ucsc.add_vline(
                 x=(s + e) / 2,
-                line=dict(color="rgba(246,196,122,0.70)", width=1.0, dash="dash"),
+                line=dict(color="rgba(157,163,175,0.60)", width=0.9, dash="dash"),
             )
 
         # ── Shared layout ─────────────────────────────────────────────────────
