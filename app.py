@@ -809,10 +809,11 @@ elif page == "Candidate Detail":
         # ── Panel A: Gene structure ───────────────────────────────────────────
         # NFR shading
         nfr_colors = [P_AQUA, P_ROSE]
-        for (ns, ne), nc in zip(nfr_regions, nfr_colors):
+        nfr_rgba = ["rgba(111,195,200,0.16)", "rgba(242,154,160,0.16)"]
+        for (ns, ne), nfc in zip(nfr_regions, nfr_rgba):
             fig_ucsc.add_shape(
                 type="rect", x0=ns, x1=ne, y0=-1.5, y1=1.5,
-                fillcolor=f"{nc}28", line=dict(width=0), row=cur, col=1,
+                fillcolor=nfc, line=dict(width=0), row=cur, col=1,
             )
         # TSS lines
         for tss_p in [tss1, tss2]:
@@ -873,13 +874,13 @@ elif page == "Candidate Detail":
                 x=pos_full[phylop_s > 0], y=phylop_s[phylop_s > 0],
                 mode="lines", name="Conserved",
                 line=dict(color=P_AQUA, width=0),
-                fill="tozeroy", fillcolor=f"{P_AQUA}B0",
+                fill="tozeroy", fillcolor="rgba(111,195,200,0.70)",
             ), row=cur, col=1)
             fig_ucsc.add_trace(go.Scatter(
                 x=pos_full[phylop_s <= 0], y=phylop_s[phylop_s <= 0],
                 mode="lines", name="Accelerated",
                 line=dict(color=P_ROSE, width=0),
-                fill="tozeroy", fillcolor=f"{P_ROSE}99",
+                fill="tozeroy", fillcolor="rgba(242,154,160,0.60)",
             ), row=cur, col=1)
             fig_ucsc.add_hline(y=0, line_color=P_GHOST, line_width=0.8,
                                line_dash="dash", row=cur, col=1)
@@ -895,7 +896,7 @@ elif page == "Candidate Detail":
         fig_ucsc.add_trace(go.Scatter(
             x=gc_pos, y=gc_vals, mode="lines", name="GC %",
             line=dict(color=P_SKY, width=1.8),
-            fill="tozeroy", fillcolor=f"{P_SKY}33",
+            fill="tozeroy", fillcolor="rgba(136,191,235,0.20)",
         ), row=cur, col=1)
         fig_ucsc.add_hline(y=50, line_color=P_GHOST, line_width=0.7,
                            line_dash="dot", row=cur, col=1)
@@ -999,12 +1000,12 @@ elif page == "Candidate Detail":
         fig_radar.add_trace(go.Scatterpolar(
             r=vals_cand + [vals_cand[0]], theta=labels_radar + [labels_radar[0]],
             fill="toself", name=cand["label"],
-            line_color=P_AQUA, fillcolor=f"{P_AQUA}30",
+            line_color=P_AQUA, fillcolor="rgba(111,195,200,0.19)",
         ))
         fig_radar.add_trace(go.Scatterpolar(
             r=vals_ref + [vals_ref[0]], theta=labels_radar + [labels_radar[0]],
             fill="toself", name="UCOE Reference",
-            line_color=P_ROSE, fillcolor=f"{P_ROSE}18", line_dash="dot",
+            line_color=P_ROSE, fillcolor="rgba(242,154,160,0.09)", line_dash="dot",
         ))
         fig_radar.update_layout(
             polar=dict(
