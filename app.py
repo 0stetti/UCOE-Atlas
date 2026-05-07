@@ -827,101 +827,125 @@ elif page == "Candidate Detail":
 
         cur = 1   # current row counter
 
-        # ── Panel A: Gene structure (UCSC-style two-track layout) ────────────
-        # Three y-levels:  gene1 track = +0.7,  ETS track = 0,  gene2 track = -0.7
-        # Each gene occupies its own horizontal lane; no visual overlap.
+        # ── Panel A: Gene structure ──────────────────────────────────────────
+        # Layout: 3 named tracks on the Y axis
+        #   Y= 0.70  → gene1  (+strand)
+        #   Y= 0.00  → ETS motifs / NFR region
+        #   Y=-0.70  → gene2  (-strand)
+        Y_G1, Y_MOT, Y_G2 = 0.70, 0.0, -0.70
+        GH = 0.13   # half-height of gene bar
 
-        Y_G1, Y_G2, Y_ETS = 0.70, -0.70, 0.0
-        TRACK_H = 0.18   # half-height of the gene body bar
-
-        # ── NFR shading (only in the promoter overlap zone) ──
-        nfr_rgba = ["rgba(111,195,200,0.18)", "rgba(242,154,160,0.18)"]
-        nfr_y    = [(Y_G1 - TRACK_H, Y_G1 + TRACK_H),
-                    (Y_G2 - TRACK_H, Y_G2 + TRACK_H)]
-        for (ns, ne), nfc, (ny0, ny1) in zip(nfr_regions, nfr_rgba, nfr_y):
+        # NFR shading — full panel height so it reads as a region
+        for (ns, ne), nfc in zip(
+            nfr_regions,
+            ["rgba(111,195,200,0.14)", "rgba(242,154,160,0.14)"]
+        ):
             fig_ucsc.add_shape(
-                type="rect", x0=ns, x1=ne, y0=ny0 - 0.08, y1=ny1 + 0.08,
+                type="rect", x0=ns, x1=ne, y0=-1.05, y1=1.05,
                 fillcolor=nfc, line=dict(width=0), row=cur, col=1,
             )
 
-        # ── TSS dotted verticals ──
-        for tss_p, ty in [(tss1, Y_G1), (tss2, Y_G2)]:
+        # Chromosome backbone — thin grey line at Y=0
+        fig_ucsc.add_shape(
+            type="line", x0=0, x1=length - 1, y0=Y_MOT, y1=Y_MOT,
+            line=dict(color=P_RULE, width=1.5), row=cur, col=1,
+        )
+
+        # TSS vertical marks (shared between both genes)
+        for tss_p in [tss1, tss2]:
             fig_ucsc.add_shape(
-                type="line", x0=tss_p, x1=tss_p, y0=-1.1, y1=1.1,
-                line=dict(color=P_RULE, width=1, dash="dot"), row=cur, col=1,
+                type="line", x0=tss_p, x1=tss_p, y0=-1.0, y1=1.0,
+                line=dict(color=P_GHOST, width=0.8, dash="dot"), row=cur, col=1,
             )
             fig_ucsc.add_annotation(
-                x=tss_p, y=(1.12 if ty > 0 else -1.12),
-                text="TSS", showarrow=False,
-                font=dict(size=8, color=P_GHOST), row=cur, col=1,
+                x=tss_p, y=1.06, text="TSS", showarrow=False,
+                font=dict(size=7, color=P_GHOST), row=cur, col=1,
             )
 
-        # ── Gene body bars + directional arrow tip ──
-        g1_x0 = max(0, tss1)
-        g1_x1 = length - 1
-        g2_x0 = 0
-        g2_x1 = min(length - 1, tss2)
-
-        for gx0, gx1, gy, gc, gname, direction in [
+        # Gene body bars + arrowhead at 3′ end
+        g1_x0, g1_x1 = max(0, tss1), length - 1
+        g2_x0, g2_x1 = 0, min(length - 1, tss2)
+        for gx0, gx1, gy, gc, gname, strand in [
             (g1_x0, g1_x1, Y_G1, P_AQUA, cand["gene1"], "+"),
-            (g2_x0, g2_x1, Y_G2, P_ROSE, cand["gene2"], "-"),
+            (g2_x0, g2_x1, Y_G2, P_ROSE, cand["gene2"], "−"),
         ]:
-            # Gene body (thin filled rect)
+            # Body rectangle
             fig_ucsc.add_shape(
                 type="rect", x0=gx0, x1=gx1,
-                y0=gy - TRACK_H, y1=gy + TRACK_H,
-                fillcolor=gc, opacity=0.82,
-                line=dict(width=0), row=cur, col=1,
+                y0=gy - GH, y1=gy + GH,
+                fillcolor=gc, opacity=0.85, line=dict(width=0),
+                row=cur, col=1,
+            )
+            # TSS cap (thick vertical at transcription start)
+            tss_cap = gx0 if strand == "+" else gx1
+            fig_ucsc.add_shape(
+                type="line", x0=tss_cap, x1=tss_cap,
+                y0=gy - GH - 0.06, y1=gy + GH + 0.06,
+                line=dict(color=gc, width=3), row=cur, col=1,
             )
             # Arrowhead at 3′ end
-            arrow_x = gx1 if direction == "+" else gx0
-            ax_offset = length * 0.012
+            tip_x = gx1 if strand == "+" else gx0
+            off   = length * 0.013
             fig_ucsc.add_annotation(
-                x=arrow_x + (ax_offset if direction == "+" else -ax_offset),
-                y=gy, ax=arrow_x, ay=gy,
+                x=tip_x + (off if strand == "+" else -off), y=gy,
+                ax=tip_x, ay=gy,
                 xref="x", yref="y", axref="x", ayref="y",
                 text="", showarrow=True,
-                arrowhead=2, arrowsize=1.4, arrowwidth=2.5, arrowcolor=gc,
+                arrowhead=2, arrowsize=1.5, arrowwidth=3, arrowcolor=gc,
                 row=cur, col=1,
             )
-            # Gene name centred on body
+            # Strand label inside bar (small, white)
+            bar_cx = (gx0 + gx1) / 2
             fig_ucsc.add_annotation(
-                x=(gx0 + gx1) / 2, y=gy + (TRACK_H + 0.14),
-                text=f"<i><b>{gname}</b></i>",
+                x=bar_cx, y=gy,
+                text=f"{'→' if strand == '+' else '←'}  {gname}",
                 showarrow=False,
-                font=dict(size=11, color=gc, family="Arial"),
+                font=dict(size=10, color="white", family="Arial"),
                 row=cur, col=1,
-            )
-            # Direction label at TSS end
-            dir_label = "5′ →" if direction == "+" else "← 5′"
-            dir_x     = gx0 if direction == "+" else gx1
-            fig_ucsc.add_annotation(
-                x=dir_x, y=gy - (TRACK_H + 0.18),
-                text=dir_label, showarrow=False,
-                font=dict(size=8, color=gc), row=cur, col=1,
             )
 
-        # ── ETS markers on centre track ──
+        # ETS motifs on the backbone — vertical tick marks
         for i, (s, e, strand, mseq) in enumerate(ets_all):
-            in_nfr = any(ns <= s <= ne for ns, ne in nfr_regions)
-            sym    = "triangle-down" if strand == "+" else "triangle-up"
-            fig_ucsc.add_trace(go.Scatter(
-                x=[(s + e) / 2], y=[Y_ETS], mode="markers",
-                marker=dict(size=10, color=P_PEACH, symbol=sym,
-                            line=dict(width=1.2, color=P_INK)),
-                hovertemplate=(f"ETS #{i+1} ({strand})<br>{mseq}<br>"
-                               f"pos {s}<br>{'in NFR' if in_nfr else 'outside NFR'}"
-                               f"<extra></extra>"),
-                showlegend=False,
-            ), row=cur, col=1)
+            cx     = (s + e) / 2
+            in_nfr = any(ns <= cx <= ne for ns, ne in nfr_regions)
+            # Tick pointing up (+) or down (-)
+            y0 = Y_MOT
+            y1 = Y_MOT + (0.28 if strand == "+" else -0.28)
+            fig_ucsc.add_shape(
+                type="line", x0=cx, x1=cx, y0=y0, y1=y1,
+                line=dict(color=P_PEACH, width=2.5), row=cur, col=1,
+            )
+            # Sequence label at the tip
             fig_ucsc.add_annotation(
-                x=(s + e) / 2, y=Y_ETS + (0.22 if strand == "+" else -0.22),
+                x=cx, y=y1 + (0.06 if strand == "+" else -0.06),
                 text=f"#{i+1}", showarrow=False,
                 font=dict(size=7, color=P_SLATE), row=cur, col=1,
             )
+            # Invisible scatter point for hover tooltip
+            fig_ucsc.add_trace(go.Scatter(
+                x=[cx], y=[y1], mode="markers",
+                marker=dict(size=8, color="rgba(0,0,0,0)"),
+                hovertemplate=(
+                    f"<b>ETS #{i+1}</b> ({strand})<br>"
+                    f"Motif: {mseq}<br>pos {s}–{e}<br>"
+                    f"{'● in NFR' if in_nfr else '○ outside NFR'}"
+                    f"<extra></extra>"
+                ),
+                showlegend=False,
+            ), row=cur, col=1)
 
+        # Y-axis: named track labels instead of hidden axis
         fig_ucsc.update_yaxes(
-            visible=False, range=[-1.2, 1.2], row=cur, col=1,
+            tickvals=[Y_G1, Y_MOT, Y_G2],
+            ticktext=[
+                f"<i>{cand['gene1']}</i> (+)",
+                "ETS",
+                f"<i>{cand['gene2']}</i> (−)",
+            ],
+            tickfont=dict(size=9, color=P_SLATE),
+            range=[-1.12, 1.12],
+            showgrid=False, zeroline=False,
+            row=cur, col=1,
         )
         cur += 1
 
