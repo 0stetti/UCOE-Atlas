@@ -226,10 +226,28 @@ APP_DIR  = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / "data"
 
 
+_KNOWN_UCOES = {
+    "A2UCOE":    ("CBX3",  "HNRNPA2B1"),
+    "TBP/PSMB1": ("PSMB1", "TBP"),
+    "SRF-UCOE":  ("SURF2", "SURF1"),
+}
+
 @st.cache_data
 def load_data():
     scored = pd.read_csv(DATA_DIR / "scored_candidates.tsv", sep="\t")
     ref    = pd.read_csv(DATA_DIR / "reference_profile.tsv",  sep="\t")
+    # Derived columns computed once inside the cache
+    scored["length"] = scored["end"] - scored["start"]
+    scored["label"]  = scored["gene1"] + "/" + scored["gene2"]
+    scored["region"] = (scored["chrom"] + ":" +
+                        scored["start"].astype(str) + "-" +
+                        scored["end"].astype(str))
+    def _is_known(row):
+        for name, (g1, g2) in _KNOWN_UCOES.items():
+            if {row["gene1"], row["gene2"]} == {g1, g2}:
+                return name
+        return None
+    scored["known_ucoe"] = scored.apply(_is_known, axis=1)
     return scored, ref
 
 
@@ -300,27 +318,7 @@ struct_cand, struct_known, struct_ctrl = load_structural()
 integrated               = load_integrated()
 loo_df, sens_raw         = load_validation()
 
-# ── Derived columns ──
-scored["length"] = scored["end"] - scored["start"]
-scored["label"]  = scored["gene1"] + "/" + scored["gene2"]
-scored["region"] = (scored["chrom"] + ":" +
-                    scored["start"].astype(str) + "-" +
-                    scored["end"].astype(str))
-
-# ── Known UCOE labels ──
-KNOWN_UCOES = {
-    "A2UCOE":    ("CBX3",  "HNRNPA2B1"),
-    "TBP/PSMB1": ("PSMB1", "TBP"),
-    "SRF-UCOE":  ("SURF2", "SURF1"),
-}
-
-def is_known_ucoe(row):
-    for name, (g1, g2) in KNOWN_UCOES.items():
-        if ({row["gene1"], row["gene2"]} == {g1, g2}):
-            return name
-    return None
-
-scored["known_ucoe"] = scored.apply(is_known_ucoe, axis=1)
+KNOWN_UCOES = _KNOWN_UCOES   # alias kept for any downstream references
 
 # ── Merge sensitivity with gene names ──
 sens = sens_raw.merge(
