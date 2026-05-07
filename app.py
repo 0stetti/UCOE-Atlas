@@ -19,7 +19,7 @@ from pathlib import Path
 # ── Config ──
 st.set_page_config(
     page_title="UCOE Atlas",
-    page_icon="dna",
+    page_icon="🧬",
     layout="wide",
     initial_sidebar_state="expanded",
 )
@@ -67,13 +67,14 @@ def is_known_ucoe(row):
 
 scored["known_ucoe"] = scored.apply(is_known_ucoe, axis=1)
 
-# Features for radar/PCA
+# Features for radar/PCA — 21 variables matching the pipeline feature space
 FEATURES = [
     "H3K4me3_mean", "H3K4me3_cv", "H3K27ac_mean", "H3K27ac_cv",
     "H3K27me3_mean", "H3K27me3_cv", "H3K9me3_mean", "H3K9me3_cv",
     "meth_mean", "meth_cv", "DNase_mean", "DNase_cv",
     "H3K9ac_mean", "H3K9ac_cv", "H3K36me3_mean", "H3K36me3_cv",
     "repliseq_mean", "CTCF_n_peaks",
+    "cpg_obs_exp", "cpg_gc_pct", "inter_tss_distance",
 ]
 
 FEATURE_LABELS = {
@@ -86,6 +87,7 @@ FEATURE_LABELS = {
     "H3K9ac_mean": "H3K9ac", "H3K9ac_cv": "H3K9ac CV",
     "H3K36me3_mean": "H3K36me3", "H3K36me3_cv": "H3K36me3 CV",
     "repliseq_mean": "Repli-seq", "CTCF_n_peaks": "CTCF peaks",
+    "cpg_obs_exp": "CpG Obs/Exp", "cpg_gc_pct": "GC %", "inter_tss_distance": "Inter-TSS dist",
 }
 
 
@@ -149,7 +151,7 @@ if page == "Overview":
                 "Repressive marks absent ≥ 80%",
                 "Hypomethylation (< 10%) ≥ 80%",
             ],
-            "Retained": [789, 692, 670, 645, 599],
+            "Retained": [789, 692, 647, 645, 599],
         })
         st.dataframe(filter_data, use_container_width=True, hide_index=True)
 
@@ -264,14 +266,10 @@ elif page == "Candidate Detail":
     # Move known UCOEs to top of list
     known_options = [o for o in options if "[Known UCOE]" in o]
     other_options = [o for o in options if "[Known UCOE]" not in o]
-    options_sorted = known_options + ["---"] + other_options
+    options_sorted = known_options + other_options
 
-    selected = st.selectbox("Select candidate", options_sorted,
-                            help="Known UCOEs are listed first for reference")
-
-    if selected == "---":
-        st.info("Select a candidate from the list.")
-        st.stop()
+    st.caption("Known UCOEs are listed first for reference.")
+    selected = st.selectbox("Select candidate", options_sorted)
 
     rank = int(selected.split("#")[1].split(" ")[0])
     cand = scored[scored["composite_rank"] == rank].iloc[0]
@@ -379,8 +377,7 @@ elif page == "Candidate Detail":
     col1, col2, col3 = st.columns(3)
     col1.metric("CpG Overlap", f"{cand['cpg_overlap_fraction']*100:.1f}%")
     col2.metric("CpG Obs/Exp", f"{cand['cpg_obs_exp']:.1f}")
-    col3.metric("GC Content", f"{cand['cpg_gc_pct']:.0f}%"
-                if cand['cpg_gc_pct'] < 100 else f"{cand['length']/cand['length']*57:.0f}%")
+    col3.metric("GC Content", f"{min(cand['cpg_gc_pct'], 100):.0f}%")
 
     # ── DNA Biophysical Properties ──
     st.markdown("---")
@@ -402,11 +399,11 @@ elif page == "Candidate Detail":
             entropy_val = struct_row['dinuc_entropy']
             gc_val = struct_row['gc_content']
 
-            # Reference values
-            ctrl_ww = 0.154  # controls median
-            ctrl_ss = 0.475
-            ucoe_ww = 0.213  # candidates median
-            ucoe_ss = 0.433
+            # Reference values computed from loaded structural data
+            ctrl_ww = struct_ctrl["ww_fraction"].median() if struct_ctrl is not None and len(struct_ctrl) > 0 else 0.081
+            ctrl_ss = struct_ctrl["ss_fraction"].median() if struct_ctrl is not None and len(struct_ctrl) > 0 else 0.474
+            ucoe_ww = struct_cand["ww_fraction"].median() if len(struct_cand) > 0 else 0.112
+            ucoe_ss = struct_cand["ss_fraction"].median() if len(struct_cand) > 0 else 0.431
 
             # ── Interpretation panel ──
             st.markdown("##### Nucleosome exclusion mechanism")
