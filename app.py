@@ -892,37 +892,26 @@ elif page == "Candidate Detail":
                 arrowhead=2, arrowsize=1.6, arrowwidth=3, arrowcolor=gc,
                 row=cur, col=1,
             )
-            # Gene name above the arrow line
-            bar_cx = (gx0 + gx1) / 2
-            fig_ucsc.add_annotation(
-                x=bar_cx, y=gy + 0.28,
-                text=f"<i><b>{gname}</b></i>",
-                showarrow=False,
-                font=dict(size=10, color=gc, family="Arial"),
-                row=cur, col=1,
-            )
 
-        # ETS motifs on the backbone — vertical tick marks
+        # ETS motifs — tick stem + triangle marker at tip
         for i, (s, e, strand, mseq) in enumerate(ets_all):
             cx     = (s + e) / 2
             in_nfr = any(ns <= cx <= ne for ns, ne in nfr_regions)
-            # Tick pointing up (+) or down (-)
-            y0 = Y_MOT
-            y1 = Y_MOT + (0.28 if strand == "+" else -0.28)
+            y1 = Y_MOT + (0.30 if strand == "+" else -0.30)
+            # Tick stem from backbone to triangle base
             fig_ucsc.add_shape(
-                type="line", x0=cx, x1=cx, y0=y0, y1=y1,
-                line=dict(color=P_PEACH, width=2.5), row=cur, col=1,
+                type="line", x0=cx, x1=cx, y0=Y_MOT, y1=y1,
+                line=dict(color=P_PEACH, width=1.8), row=cur, col=1,
             )
-            # Sequence label at the tip
-            fig_ucsc.add_annotation(
-                x=cx, y=y1 + (0.06 if strand == "+" else -0.06),
-                text=f"#{i+1}", showarrow=False,
-                font=dict(size=7, color=P_SLATE), row=cur, col=1,
-            )
-            # Invisible scatter point for hover tooltip
+            # Triangle marker at the tip (+ → pointing down; - → pointing up)
+            sym = "triangle-down" if strand == "+" else "triangle-up"
             fig_ucsc.add_trace(go.Scatter(
-                x=[cx], y=[y1], mode="markers",
-                marker=dict(size=8, color="rgba(0,0,0,0)"),
+                x=[cx], y=[y1], mode="markers+text",
+                marker=dict(size=11, color=P_PEACH, symbol=sym,
+                            line=dict(width=1, color=P_INK)),
+                text=[f"#{i+1}"],
+                textposition="top center" if strand == "+" else "bottom center",
+                textfont=dict(size=7, color=P_SLATE),
                 hovertemplate=(
                     f"<b>ETS #{i+1}</b> ({strand})<br>"
                     f"Motif: {mseq}<br>pos {s}–{e}<br>"
