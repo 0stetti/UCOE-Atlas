@@ -1014,13 +1014,16 @@ elif page == "Candidate Detail":
         fig_ucsc.update_layout(
             height=130 * n_rows + 80,
             showlegend=False,
-            margin=dict(l=72, r=28, t=28, b=44),
+            margin=dict(l=72, r=210, t=28, b=44),
             paper_bgcolor=P_BG, plot_bgcolor=P_BG,
             font=dict(family="Inter, Arial, sans-serif", size=11, color=P_SLATE),
         )
-        # Panel labels (A, B, C, D) — match figure style
+
+        # ── Panel labels (A/B/C/D) on the left + per-panel legends on the right ─
         panel_letters = "ABCD"
-        row_positions  = [1 - (i + 0.5) / n_rows for i in range(n_rows)]
+        row_positions = [1 - (i + 0.5) / n_rows for i in range(n_rows)]
+
+        # Panel letter labels (left)
         for i, (letter, yp) in enumerate(zip(panel_letters[:n_rows], row_positions)):
             fig_ucsc.add_annotation(
                 x=-0.04, y=yp, xref="paper", yref="paper",
@@ -1029,46 +1032,54 @@ elif page == "Candidate Detail":
                 xanchor="right", yanchor="middle",
             )
 
-        st.plotly_chart(fig_ucsc, use_container_width=True)
+        # Per-panel legend annotations (right side, one item per line)
+        LX     = 1.02   # x position in paper coords (just right of plot)
+        STEP   = 0.035  # vertical gap between legend items
 
-        # ── Legend ────────────────────────────────────────────────────────────
-        def _leg_item(color, label, shape="rect"):
-            if shape == "triangle":
-                icon = (f"<span style='display:inline-block;width:0;height:0;"
-                        f"border-left:6px solid transparent;border-right:6px solid transparent;"
-                        f"border-top:10px solid {color};vertical-align:middle;"
-                        f"margin-right:5px'></span>")
-            else:
-                icon = (f"<span style='display:inline-block;width:12px;height:10px;"
-                        f"background:{color};border-radius:2px;vertical-align:middle;"
-                        f"margin-right:5px;opacity:0.82'></span>")
-            return f"{icon}<span style='font-size:0.78rem;color:{P_SLATE}'>{label}</span>"
+        def _rleg(fig, items, panel_i):
+            """Add right-side legend items for a given panel row."""
+            yc = row_positions[panel_i]
+            offset = STEP * (len(items) - 1) / 2
+            for k, (color, label) in enumerate(items):
+                fig.add_annotation(
+                    x=LX, y=yc + offset - k * STEP,
+                    xref="paper", yref="paper",
+                    text=label, showarrow=False,
+                    xanchor="left", yanchor="middle",
+                    font=dict(size=8, color=color),
+                )
 
-        legend_items = [
-            _leg_item(P_AQUA,     f"{cand['gene1']} (+)"),
-            _leg_item(P_ROSE,     f"{cand['gene2']} (−)"),
-            _leg_item(P_PEACH,    "ETS motif (CGGAA[GA])", "triangle"),
-            _leg_item("rgba(246,196,122,0.55)", "ETS position (all panels)"),
-        ]
+        pidx = 0
+
+        # Panel A — gene structure
+        _rleg(fig_ucsc, [
+            (P_AQUA,   f"■  {cand['gene1']} (+)"),
+            (P_ROSE,   f"■  {cand['gene2']} (−)"),
+            (P_PEACH,  "▼  ETS motif (CGGAA[GA])"),
+            (P_GHOST,  "╌  ETS position"),
+        ], pidx); pidx += 1
+
+        # Panel B — PhyloP
         if has_cons:
-            legend_items += [
-                _leg_item("rgba(111,195,200,0.82)", "PhyloP > 0 — conserved"),
-                _leg_item("rgba(242,154,160,0.82)", "PhyloP < 0 — accelerated"),
-            ]
-        if has_phast:
-            legend_items.append(_leg_item("rgba(143,207,168,0.82)", "PhastCons probability"))
-        legend_items += [
-            _leg_item(P_SKY,      "GC content (%)"),
-            _leg_item(P_LAVENDER, "CpG dinucleotide density"),
-        ]
+            _rleg(fig_ucsc, [
+                (P_AQUA,   "■  PhyloP > 0 — conserved"),
+                (P_ROSE,   "■  PhyloP < 0 — accelerated"),
+                (P_GHOST,  "╌  Neutral"),
+            ], pidx); pidx += 1
 
-        st.markdown(
-            "<div style='display:flex;flex-wrap:wrap;gap:16px;padding:8px 4px;"
-            f"border-top:1px solid {P_RULE};margin-top:4px'>"
-            + "".join(f"<div>{item}</div>" for item in legend_items)
-            + "</div>",
-            unsafe_allow_html=True,
-        )
+        # Panel C — PhastCons
+        if has_phast:
+            _rleg(fig_ucsc, [
+                (P_MINT,   "■  PhastCons probability"),
+            ], pidx); pidx += 1
+
+        # Panel D — GC% / CpG
+        _rleg(fig_ucsc, [
+            (P_SKY,      "—  GC content (%)"),
+            (P_LAVENDER, "■  CpG dinucleotide density"),
+        ], pidx)
+
+        st.plotly_chart(fig_ucsc, use_container_width=True)
 
         # ── ETS summary table ─────────────────────────────────────────────────
         if ets_all:
