@@ -3,9 +3,9 @@ UCOE Atlas — Interactive platform for exploring UCOE candidates
 in the human genome.
 
 Developed by Elton Roger Ostetti (USP / Instituto Butantan)
-Supervisor: Prof. Dr. Ana Maria Moro
+Supervisors: Prof. Dr. Ana Maria Moro · Prof. Dr. Tânia Maria Manieri
 
-Run: streamlit run webapp/app.py
+Run: streamlit run app.py
 """
 
 import streamlit as st
@@ -16,7 +16,9 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from pathlib import Path
 
-# ── Config ──
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE CONFIG
+# ══════════════════════════════════════════════════════════════════════════════
 st.set_page_config(
     page_title="UCOE Atlas",
     page_icon="🧬",
@@ -24,50 +26,296 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-APP_DIR = Path(__file__).resolve().parent
+# ══════════════════════════════════════════════════════════════════════════════
+# DESIGN SYSTEM — colors, CSS, Plotly template
+# ══════════════════════════════════════════════════════════════════════════════
+C_NAVY   = "#0D1B4B"
+C_BLUE   = "#1565C0"
+C_TEAL   = "#00838F"
+C_GREEN  = "#2E7D32"
+C_AMBER  = "#E65100"
+C_RED    = "#C62828"
+C_PURPLE = "#6A1B9A"
+C_GRAY   = "#546E7A"
+C_BGCARD = "#F8F9FC"
+C_BORDER = "#E3E8F0"
+
+PALETTE = [C_BLUE, C_TEAL, C_AMBER, C_GREEN, C_RED, C_PURPLE, C_GRAY,
+           "#0277BD", "#00695C", "#BF360C", "#1B5E20", "#880E4F"]
+
+st.markdown("""
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+html, body, [class*="css"] {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+/* ── Sidebar ── */
+[data-testid="stSidebar"] {
+    background: linear-gradient(180deg, #0D1B4B 0%, #1A237E 100%) !important;
+}
+[data-testid="stSidebar"] * { color: #E8EAF6 !important; }
+[data-testid="stSidebar"] .stSelectbox > div > div {
+    background: rgba(255,255,255,0.08) !important;
+    border-color: rgba(255,255,255,0.2) !important;
+    color: white !important;
+}
+[data-testid="stSidebar"] hr { border-color: rgba(255,255,255,0.15) !important; }
+
+/* ── Metric cards ── */
+[data-testid="metric-container"] {
+    background: linear-gradient(135deg, #F8F9FC 0%, #EEF2FF 100%);
+    border: 1px solid #C5CAE9;
+    border-radius: 12px;
+    padding: 18px 22px !important;
+    box-shadow: 0 2px 10px rgba(13,27,75,0.07);
+}
+[data-testid="stMetricValue"] {
+    font-size: 2rem !important;
+    font-weight: 700 !important;
+    color: #0D1B4B !important;
+}
+[data-testid="stMetricLabel"] {
+    font-weight: 600 !important;
+    color: #546E7A !important;
+    font-size: 0.82rem !important;
+    letter-spacing: 0.03em !important;
+    text-transform: uppercase !important;
+}
+
+/* ── Page titles ── */
+h1 { color: #0D1B4B !important; font-weight: 700 !important; letter-spacing: -0.02em !important; }
+h2 { color: #1A237E !important; font-weight: 600 !important; }
+h3 { color: #1565C0 !important; font-weight: 600 !important; }
+
+/* ── Tabs ── */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 8px;
+    border-bottom: 2px solid #E3E8F0;
+}
+.stTabs [data-baseweb="tab"] {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: #546E7A;
+    padding: 10px 20px;
+    border-radius: 8px 8px 0 0;
+}
+.stTabs [aria-selected="true"] {
+    color: #1565C0 !important;
+    background: #EEF2FF !important;
+    border-bottom: 2px solid #1565C0 !important;
+}
+
+/* ── Dataframe ── */
+[data-testid="stDataFrame"] { border-radius: 8px; overflow: hidden; border: 1px solid #E3E8F0; }
+
+/* ── Expander ── */
+.streamlit-expanderHeader {
+    font-weight: 600 !important;
+    color: #1565C0 !important;
+    background: #F8F9FC !important;
+    border-radius: 8px !important;
+}
+
+/* ── Buttons ── */
+.stDownloadButton button {
+    background: #1565C0 !important;
+    color: white !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    border: none !important;
+}
+
+/* ── Info/success/warning ── */
+.stInfo, .stSuccess, .stWarning, .stError {
+    border-radius: 8px !important;
+}
+</style>
+""", unsafe_allow_html=True)
+
+
+def apply_template(fig, height=420, margin=None):
+    m = margin or dict(l=60, r=40, t=50, b=50)
+    fig.update_layout(
+        template="plotly_white",
+        font=dict(family="Inter, -apple-system, sans-serif", size=13, color="#37474F"),
+        plot_bgcolor="white",
+        paper_bgcolor="white",
+        margin=m,
+        height=height,
+        legend=dict(
+            bgcolor="rgba(255,255,255,0.95)",
+            bordercolor="#E3E8F0",
+            borderwidth=1,
+            font=dict(size=12),
+        ),
+    )
+    fig.update_xaxes(
+        showgrid=True, gridcolor="#F0F2F5", gridwidth=1,
+        showline=True, linecolor="#CFD8DC", linewidth=1,
+        tickfont=dict(size=11),
+    )
+    fig.update_yaxes(
+        showgrid=True, gridcolor="#F0F2F5", gridwidth=1,
+        showline=True, linecolor="#CFD8DC", linewidth=1,
+        tickfont=dict(size=11),
+    )
+    return fig
+
+
+def kpi_card(title, value, subtitle="", color=C_BLUE):
+    return f"""
+    <div style="background:linear-gradient(135deg,{color}10,{color}1A);
+                border:1px solid {color}40; border-left:4px solid {color};
+                border-radius:10px; padding:20px 22px; height:100%;">
+      <div style="font-size:2rem;font-weight:700;color:{color};line-height:1.1">{value}</div>
+      <div style="font-weight:600;color:#1a1a2e;margin:4px 0 2px;font-size:0.95rem">{title}</div>
+      <div style="color:#607D8B;font-size:0.82rem">{subtitle}</div>
+    </div>"""
+
+
+def finding_card(icon, title, value, description, color):
+    return f"""
+    <div style="background:white; border:1px solid {color}30;
+                border-top:4px solid {color}; border-radius:10px;
+                padding:22px; box-shadow:0 2px 12px rgba(0,0,0,0.06); height:100%">
+      <div style="font-size:1.8rem;margin-bottom:8px">{icon}</div>
+      <div style="font-size:1.4rem;font-weight:700;color:{color};margin-bottom:4px">{value}</div>
+      <div style="font-weight:600;color:#1a1a2e;margin-bottom:8px;font-size:0.95rem">{title}</div>
+      <div style="color:#546E7A;font-size:0.85rem;line-height:1.5">{description}</div>
+    </div>"""
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DATA LOADING
+# ══════════════════════════════════════════════════════════════════════════════
+APP_DIR  = Path(__file__).resolve().parent
 DATA_DIR = APP_DIR / "data"
 
-# ── Load data ──
+
 @st.cache_data
 def load_data():
     scored = pd.read_csv(DATA_DIR / "scored_candidates.tsv", sep="\t")
-    ref = pd.read_csv(DATA_DIR / "reference_profile.tsv", sep="\t")
+    ref    = pd.read_csv(DATA_DIR / "reference_profile.tsv",  sep="\t")
     return scored, ref
+
 
 @st.cache_data
 def load_structural():
     try:
-        cand = pd.read_csv(DATA_DIR / "candidates_structural.tsv", sep="\t")
-        known = pd.read_csv(DATA_DIR / "known_ucoes_structural.tsv", sep="\t")
-        ctrl = pd.read_csv(DATA_DIR / "controls_structural.tsv", sep="\t")
+        cand  = pd.read_csv(DATA_DIR / "candidates_structural.tsv",    sep="\t")
+        known = pd.read_csv(DATA_DIR / "known_ucoes_structural.tsv",   sep="\t")
+        ctrl  = pd.read_csv(DATA_DIR / "controls_structural.tsv",      sep="\t")
         return cand, known, ctrl
     except FileNotFoundError:
         return None, None, None
 
-scored, ref = load_data()
+
+@st.cache_data
+def load_integrated():
+    path = DATA_DIR / "ucoe_integrated_classification.tsv"
+    if path.exists():
+        return pd.read_csv(path, sep="\t")
+    return None
+
+
+@st.cache_data
+def load_validation():
+    loo  = pd.read_csv(DATA_DIR / "loo_validation.tsv",       sep="\t")
+    sens = pd.read_csv(DATA_DIR / "sensitivity_analysis.tsv", sep="\t")
+    return loo, sens
+
+
+@st.cache_data
+def load_fasta_sequences():
+    seqs = {}
+    fasta_path = DATA_DIR / "ucoe_sequences.fa"
+    if not fasta_path.exists():
+        return seqs
+    header, seq_lines = None, []
+    for line in fasta_path.read_text().splitlines():
+        if line.startswith(">"):
+            if header and seq_lines:
+                seqs[header] = "".join(seq_lines).upper()
+            header = line[1:].split()[0]
+            seq_lines = []
+        else:
+            seq_lines.append(line.strip())
+    if header and seq_lines:
+        seqs[header] = "".join(seq_lines).upper()
+    return seqs
+
+
+@st.cache_data
+def load_conservation_top50():
+    npz_path = DATA_DIR / "conservation_top50.npz"
+    if npz_path.exists():
+        return dict(np.load(npz_path, allow_pickle=True))
+    return {}
+
+
+# ── Load everything ──
+scored, ref              = load_data()
 struct_cand, struct_known, struct_ctrl = load_structural()
+integrated               = load_integrated()
+loo_df, sens_raw         = load_validation()
 
-# Add computed columns
+# ── Derived columns ──
 scored["length"] = scored["end"] - scored["start"]
-scored["label"] = scored["gene1"] + "/" + scored["gene2"]
+scored["label"]  = scored["gene1"] + "/" + scored["gene2"]
+scored["region"] = (scored["chrom"] + ":" +
+                    scored["start"].astype(str) + "-" +
+                    scored["end"].astype(str))
 
-# Known UCOEs identification
+# ── Known UCOE labels ──
 KNOWN_UCOES = {
-    "A2UCOE": ("CBX3", "HNRNPA2B1"),
+    "A2UCOE":    ("CBX3",  "HNRNPA2B1"),
     "TBP/PSMB1": ("PSMB1", "TBP"),
-    "SRF-UCOE": ("SURF2", "SURF1"),
+    "SRF-UCOE":  ("SURF2", "SURF1"),
 }
 
 def is_known_ucoe(row):
     for name, (g1, g2) in KNOWN_UCOES.items():
-        if (row["gene1"] == g1 and row["gene2"] == g2) or \
-           (row["gene1"] == g2 and row["gene2"] == g1):
+        if ({row["gene1"], row["gene2"]} == {g1, g2}):
             return name
     return None
 
 scored["known_ucoe"] = scored.apply(is_known_ucoe, axis=1)
 
-# Features for radar/PCA — 21 variables matching the pipeline feature space
+# ── Merge sensitivity with gene names ──
+sens = sens_raw.merge(
+    scored[["region", "gene1", "gene2", "composite_rank", "composite_score", "label", "chrom"]],
+    on="region", how="left"
+)
+
+# ── Merge integrated classification with scored ──
+if integrated is not None:
+    integrated["label"] = integrated["label"].str.strip()
+    scored_full = scored.merge(
+        integrated[["label", "n_ets", "ets_density_kb", "ets_in_nfr",
+                    "frac_ets_in_nfr", "ww_fraction", "ss_fraction",
+                    "phylop_mean", "ets_phylop_mean", "feature_score",
+                    "dinuc_entropy", "nuc_score"]],
+        on="label", how="left"
+    )
+else:
+    scored_full = scored.copy()
+
+# ── WW/SS reference values from actual data ──
+if struct_ctrl is not None and len(struct_ctrl) > 0:
+    REF_CTRL_WW = struct_ctrl["ww_fraction"].median()
+    REF_CTRL_SS = struct_ctrl["ss_fraction"].median()
+else:
+    REF_CTRL_WW, REF_CTRL_SS = 0.081, 0.474
+
+if struct_cand is not None and len(struct_cand) > 0:
+    REF_CAND_WW = struct_cand["ww_fraction"].median()
+    REF_CAND_SS = struct_cand["ss_fraction"].median()
+else:
+    REF_CAND_WW, REF_CAND_SS = 0.112, 0.431
+
+# ── Features (21 variables — full pipeline feature space) ──
 FEATURES = [
     "H3K4me3_mean", "H3K4me3_cv", "H3K27ac_mean", "H3K27ac_cv",
     "H3K27me3_mean", "H3K27me3_cv", "H3K9me3_mean", "H3K9me3_cv",
@@ -78,36 +326,44 @@ FEATURES = [
 ]
 
 FEATURE_LABELS = {
-    "H3K4me3_mean": "H3K4me3", "H3K4me3_cv": "H3K4me3 CV",
-    "H3K27ac_mean": "H3K27ac", "H3K27ac_cv": "H3K27ac CV",
-    "H3K27me3_mean": "H3K27me3", "H3K27me3_cv": "H3K27me3 CV",
-    "H3K9me3_mean": "H3K9me3", "H3K9me3_cv": "H3K9me3 CV",
-    "meth_mean": "Methylation", "meth_cv": "Meth CV",
-    "DNase_mean": "DNase", "DNase_cv": "DNase CV",
-    "H3K9ac_mean": "H3K9ac", "H3K9ac_cv": "H3K9ac CV",
-    "H3K36me3_mean": "H3K36me3", "H3K36me3_cv": "H3K36me3 CV",
-    "repliseq_mean": "Repli-seq", "CTCF_n_peaks": "CTCF peaks",
-    "cpg_obs_exp": "CpG Obs/Exp", "cpg_gc_pct": "GC %", "inter_tss_distance": "Inter-TSS dist",
+    "H3K4me3_mean": "H3K4me3",       "H3K4me3_cv": "H3K4me3 CV",
+    "H3K27ac_mean": "H3K27ac",       "H3K27ac_cv": "H3K27ac CV",
+    "H3K27me3_mean": "H3K27me3",     "H3K27me3_cv": "H3K27me3 CV",
+    "H3K9me3_mean": "H3K9me3",       "H3K9me3_cv": "H3K9me3 CV",
+    "meth_mean": "Methylation",       "meth_cv": "Meth CV",
+    "DNase_mean": "DNase",            "DNase_cv": "DNase CV",
+    "H3K9ac_mean": "H3K9ac",         "H3K9ac_cv": "H3K9ac CV",
+    "H3K36me3_mean": "H3K36me3",     "H3K36me3_cv": "H3K36me3 CV",
+    "repliseq_mean": "Repli-seq",     "CTCF_n_peaks": "CTCF peaks",
+    "cpg_obs_exp": "CpG Obs/Exp",    "cpg_gc_pct": "GC %",
+    "inter_tss_distance": "Inter-TSS dist",
 }
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
-st.sidebar.title("UCOE Atlas")
-st.sidebar.caption("Interactive UCOE Candidate Explorer")
+st.sidebar.markdown(
+    "<h1 style='font-size:1.6rem;font-weight:700;margin-bottom:2px'>🧬 UCOE Atlas</h1>"
+    "<p style='font-size:0.8rem;opacity:0.7;margin-top:0'>Interactive UCOE Candidate Explorer</p>",
+    unsafe_allow_html=True,
+)
 st.sidebar.markdown("---")
 
 page = st.sidebar.selectbox(
     "Navigation",
     ["Overview", "Candidate Explorer", "Candidate Detail",
-     "PCA Explorer", "Methods & Glossary", "Downloads", "About"],
+     "PCA Explorer", "Validation & Robustness",
+     "Methods & Glossary", "Downloads", "About"],
 )
 
 st.sidebar.markdown("---")
-st.sidebar.caption(
-    "E.R. Ostetti · A.M. Moro · T.M. Manieri  \n"
-    "USP / Instituto Butantan"
+st.sidebar.markdown(
+    "<p style='font-size:0.78rem;opacity:0.65;line-height:1.6'>"
+    "E.R. Ostetti &nbsp;·&nbsp; A.M. Moro<br>"
+    "T.M. Manieri<br>"
+    "USP / Instituto Butantan</p>",
+    unsafe_allow_html=True,
 )
 
 
@@ -116,70 +372,150 @@ st.sidebar.caption(
 # ══════════════════════════════════════════════════════════════════════════════
 if page == "Overview":
     st.title("UCOE Atlas")
-    st.markdown("### A Comprehensive Repository of UCOE Candidates in the Human Genome")
-
-    st.markdown("""
-    **Ubiquitous Chromatin Opening Elements (UCOEs)** are DNA regulatory sequences
-    that maintain constitutively open chromatin and prevent transgene silencing.
-    Only 3 UCOEs have been validated in the human genome to date.
-
-    This platform provides interactive access to **599 UCOE candidates** identified
-    by a two-phase computational pipeline operating on epigenomic data from
-    11 cell lines (ENCODE/Roadmap Epigenomics consortium).
-    """)
-
-    # Key metrics
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Total Candidates", "599")
-    col2.metric("Known UCOEs Recovered", "3/3")
-    col3.metric("100% Stable (top-20)", "7")
-    col4.metric("Epigenomic Features", "21")
-
-    st.markdown("---")
-
-    # Pipeline overview
-    st.subheader("Pipeline Summary")
-    col_a, col_b = st.columns(2)
-
-    with col_a:
-        st.markdown("#### Phase I — Qualitative Filtering")
-        filter_data = pd.DataFrame({
-            "Filter": [
-                "Divergent HKG promoters (≤5 kb)",
-                "CpG island overlap ≥ 40%",
-                "Active marks (H3K4me3 + H3K27ac) ≥ 80%",
-                "Repressive marks absent ≥ 80%",
-                "Hypomethylation (< 10%) ≥ 80%",
-            ],
-            "Retained": [789, 692, 647, 645, 599],
-        })
-        st.dataframe(filter_data, use_container_width=True, hide_index=True)
-
-    with col_b:
-        st.markdown("#### Phase II — Multivariate Ranking")
-        st.markdown("""
-        - **Mahalanobis distance** to UCOE centroid (Ledoit-Wolf covariance)
-        - **Cosine similarity** in z-score space
-        - **Composite percentile** rank
-        - Weighted score: 0.4 Mah + 0.3 Cos + 0.3 Pct
-        """)
-
-    # Score distribution
-    st.markdown("---")
-    st.subheader("Composite Score Distribution")
-    fig_dist = px.histogram(
-        scored, x="composite_score", nbins=50,
-        color_discrete_sequence=["#2196F3"],
-        labels={"composite_score": "UCOE Composite Score"},
+    st.markdown(
+        "<p style='font-size:1.1rem;color:#546E7A;margin-top:-10px;margin-bottom:24px'>"
+        "A computational atlas of Ubiquitous Chromatin Opening Element candidates "
+        "in the human genome — GRCh38 · ENCODE/Roadmap Epigenomics · GENCODE v44</p>",
+        unsafe_allow_html=True,
     )
-    # Mark known UCOEs
-    for _, row in scored[scored["known_ucoe"].notna()].iterrows():
-        fig_dist.add_vline(
-            x=row["composite_score"], line_dash="dash", line_color="red",
-            annotation_text=row["known_ucoe"], annotation_position="top",
+
+    # ── KPI row ──
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Candidates identified", "599")
+    c2.metric("Known UCOEs recovered", "3 / 3")
+    c3.metric("Weight-stable (top 20)", "7")
+    c4.metric("Epigenomic features", "21")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ── Key Findings ──
+    st.markdown(
+        "<h2 style='margin-bottom:16px'>Key Findings</h2>",
+        unsafe_allow_html=True,
+    )
+    f1, f2, f3 = st.columns(3)
+    with f1:
+        st.markdown(finding_card(
+            "🔬", "ETS Motif Enrichment",
+            "FE = 1.94 · q = 1.3×10⁻¹³",
+            "The CGGAAG hexamer is significantly overrepresented at UCOE candidates "
+            "relative to matched CpG island controls, implicating ETS-family "
+            "transcription factors as core regulators of constitutive chromatin opening.",
+            C_BLUE,
+        ), unsafe_allow_html=True)
+    with f2:
+        st.markdown(finding_card(
+            "🧱", "Sequence-Intrinsic Nucleosome Barrier",
+            "+38% WW dinucleotides",
+            "Candidates show higher WW (AA·AT·TA·TT) content than CpG island controls "
+            "(median 0.112 vs 0.081), reducing thermodynamic affinity for histone "
+            "octamers independently of epigenetic state.",
+            C_TEAL,
+        ), unsafe_allow_html=True)
+    with f3:
+        st.markdown(finding_card(
+            "🌿", "Purifying Selection on ETS Motifs",
+            "PhyloP 0.51 vs 0.40",
+            "ETS motif positions show higher mean PhyloP conservation scores than "
+            "flanking sequence, consistent with functional constraint on "
+            "transcription factor binding sites across vertebrate evolution.",
+            C_GREEN,
+        ), unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("---")
+
+    # ── Pipeline funnel ──
+    st.subheader("Phase I — Filtering Pipeline")
+
+    filter_steps = [
+        ("All bidirectional HKG promoters", 789,  0,   C_BLUE),
+        ("+ CpG island overlap ≥ 40%",      692,  97,  C_TEAL),
+        ("+ Active marks ubiquitous ≥ 80%",  647,  45,  "#0277BD"),
+        ("+ Repressive marks absent ≥ 80%",  645,   2,  C_AMBER),
+        ("+ Constitutive hypomethylation",   599,  46,  C_GREEN),
+    ]
+
+    fig_funnel = go.Figure()
+    bar_colors = [s[3] for s in filter_steps]
+    labels     = [s[0] for s in filter_steps]
+    retained   = [s[1] for s in filter_steps]
+    eliminated = [s[2] for s in filter_steps]
+
+    fig_funnel.add_trace(go.Bar(
+        y=labels, x=retained, orientation="h",
+        marker_color=bar_colors, opacity=0.85,
+        text=[f"<b>{r:,}</b>" for r in retained],
+        textposition="outside",
+        textfont=dict(size=13, color="#0D1B4B"),
+        hovertemplate="<b>%{y}</b><br>Retained: %{x:,}<extra></extra>",
+        name="Retained",
+    ))
+
+    for i, (label, ret, elim, _) in enumerate(filter_steps):
+        if elim > 0:
+            fig_funnel.add_annotation(
+                x=ret + 5, y=i,
+                text=f"−{elim}",
+                showarrow=False,
+                font=dict(size=11, color=C_RED),
+                xanchor="left",
+            )
+
+    apply_template(fig_funnel, height=280, margin=dict(l=280, r=80, t=20, b=40))
+    fig_funnel.update_layout(showlegend=False, xaxis_title="Candidates retained")
+    fig_funnel.update_xaxes(range=[0, 950])
+    fig_funnel.update_yaxes(autorange="reversed", tickfont=dict(size=12))
+    st.plotly_chart(fig_funnel, use_container_width=True)
+
+    st.markdown("---")
+
+    # ── Score distribution ──
+    col_hist, col_phase2 = st.columns([2, 1])
+
+    with col_hist:
+        st.subheader("Phase II — Composite Score Distribution")
+        fig_dist = px.histogram(
+            scored, x="composite_score", nbins=50,
+            color_discrete_sequence=[C_BLUE],
+            labels={"composite_score": "Composite Score"},
         )
-    fig_dist.update_layout(height=350)
-    st.plotly_chart(fig_dist, use_container_width=True)
+        # Known UCOE markers
+        for _, row in scored[scored["known_ucoe"].notna()].iterrows():
+            fig_dist.add_vline(
+                x=row["composite_score"], line_dash="dash", line_color=C_RED, line_width=2,
+                annotation_text=f"<b>{row['known_ucoe']}</b>",
+                annotation_position="top", annotation_font=dict(size=11, color=C_RED),
+            )
+        # Top-20 shading
+        top20_thresh = scored.nsmallest(20, "composite_rank")["composite_score"].min()
+        fig_dist.add_vrect(
+            x0=top20_thresh, x1=scored["composite_score"].max() + 0.01,
+            fillcolor=C_AMBER, opacity=0.07, line_width=0,
+            annotation_text="Top 20", annotation_position="top left",
+            annotation_font=dict(size=11, color=C_AMBER),
+        )
+        apply_template(fig_dist, height=320)
+        fig_dist.update_layout(showlegend=False, yaxis_title="Candidates")
+        st.plotly_chart(fig_dist, use_container_width=True)
+
+    with col_phase2:
+        st.subheader("Ranking Metrics")
+        st.markdown(f"""
+        <div style="background:{C_BGCARD};border:1px solid {C_BORDER};
+                    border-radius:10px;padding:20px;margin-top:8px">
+        <p style="margin:0 0 12px;font-weight:600;color:{C_NAVY}">Composite Score</p>
+        <p style="color:#546E7A;font-size:0.88rem;line-height:1.7;margin:0">
+        <b>S = 0.4 · D̃<sub>M</sub> + 0.3 · cos̃ + 0.3 · P̃</b><br><br>
+        Each metric is min-max normalised to [0, 1].<br><br>
+        <b style="color:{C_BLUE}">Mahalanobis (×0.4)</b><br>
+        Distance to UCOE centroid with Ledoit-Wolf covariance.<br><br>
+        <b style="color:{C_TEAL}">Cosine similarity (×0.3)</b><br>
+        Angle to reference centroid in z-score space.<br><br>
+        <b style="color:{C_GREEN}">Percentile rank (×0.3)</b><br>
+        Feature-wise percentile, averaged over 21 features.
+        </p></div>
+        """, unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -188,19 +524,20 @@ if page == "Overview":
 elif page == "Candidate Explorer":
     st.title("Candidate Explorer")
 
-    # Filters
-    col1, col2, col3 = st.columns(3)
+    # ── Filters ──
+    col1, col2, col3, col4 = st.columns([2, 2, 2, 1])
     with col1:
         rank_range = st.slider("Rank range", 1, 599, (1, 50))
     with col2:
         chrom_filter = st.multiselect(
-            "Chromosome", sorted(scored["chrom"].unique()),
-            default=[]
-        )
+            "Chromosome", sorted(scored["chrom"].unique()), default=[])
     with col3:
         min_score = st.slider("Min composite score", 0.0, 1.0, 0.0, 0.01)
+    with col4:
+        only_stable = st.checkbox("100% stable only")
 
-    # Apply filters
+    stable_labels = set(sens[sens["stability_pct"] == 100.0]["label"].dropna())
+
     mask = (
         (scored["composite_rank"] >= rank_range[0]) &
         (scored["composite_rank"] <= rank_range[1]) &
@@ -208,183 +545,308 @@ elif page == "Candidate Explorer":
     )
     if chrom_filter:
         mask &= scored["chrom"].isin(chrom_filter)
+    if only_stable:
+        mask &= scored["label"].isin(stable_labels)
 
-    filtered = scored[mask].sort_values("composite_rank")
+    filtered = scored_full[mask].sort_values("composite_rank")
+    st.markdown(f"**{len(filtered)} candidates** matching filters")
 
-    st.markdown(f"**Showing {len(filtered)} candidates**")
-
-    # Display columns
+    # ── Table ──
     display_cols = [
-        "composite_rank", "label", "chrom", "start", "end", "length",
+        "composite_rank", "label", "chrom", "length",
         "composite_score", "mahalanobis_dist", "cosine_sim",
         "H3K4me3_mean", "H3K27ac_mean", "meth_mean",
-        "H3K27me3_mean", "H3K9me3_mean", "CTCF_n_peaks", "known_ucoe",
+        "H3K27me3_mean", "H3K9me3_mean",
+        "ets_density_kb", "ww_fraction", "known_ucoe",
     ]
+    existing = [c for c in display_cols if c in filtered.columns]
     rename = {
         "composite_rank": "Rank", "label": "Gene Pair", "length": "Length (bp)",
         "composite_score": "Score", "mahalanobis_dist": "Mahal. Dist",
         "cosine_sim": "Cos. Sim", "H3K4me3_mean": "H3K4me3",
         "H3K27ac_mean": "H3K27ac", "meth_mean": "Meth %",
         "H3K27me3_mean": "H3K27me3", "H3K9me3_mean": "H3K9me3",
-        "CTCF_n_peaks": "CTCF", "known_ucoe": "Known UCOE",
+        "ets_density_kb": "ETS/kb", "ww_fraction": "WW frac.",
+        "known_ucoe": "Known UCOE",
     }
-
     st.dataframe(
-        filtered[display_cols].rename(columns=rename).round(3),
-        use_container_width=True,
-        hide_index=True,
-        height=500,
+        filtered[existing].rename(columns=rename).round(3),
+        use_container_width=True, hide_index=True, height=420,
     )
 
-    # Chromosome distribution
     st.markdown("---")
-    st.subheader("Chromosome Distribution")
-    chrom_order = [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY"]
-    chrom_counts = filtered["chrom"].value_counts().reindex(chrom_order).dropna().astype(int)
-    fig_chrom = px.bar(
-        x=chrom_counts.index, y=chrom_counts.values,
-        labels={"x": "Chromosome", "y": "Candidates"},
-        color_discrete_sequence=["#4CAF50"],
-    )
-    fig_chrom.update_layout(height=300)
-    st.plotly_chart(fig_chrom, use_container_width=True)
+    col_chr, col_scatter = st.columns(2)
+
+    with col_chr:
+        st.subheader("Chromosome Distribution")
+        chrom_order = [f"chr{i}" for i in range(1, 23)] + ["chrX", "chrY"]
+        chrom_counts = (filtered["chrom"].value_counts()
+                        .reindex(chrom_order).dropna().astype(int))
+        fig_chr = go.Figure(go.Bar(
+            x=chrom_counts.index, y=chrom_counts.values,
+            marker_color=C_TEAL, opacity=0.85,
+            hovertemplate="%{x}: %{y} candidates<extra></extra>",
+        ))
+        apply_template(fig_chr, height=300)
+        fig_chr.update_layout(showlegend=False, yaxis_title="Candidates")
+        st.plotly_chart(fig_chr, use_container_width=True)
+
+    with col_scatter:
+        st.subheader("Score vs ETS Density")
+        if "ets_density_kb" in filtered.columns:
+            scatter_df = filtered.dropna(subset=["ets_density_kb"]).copy()
+            scatter_df["is_stable"] = scatter_df["label"].isin(stable_labels)
+            scatter_df["is_known"]  = scatter_df["known_ucoe"].notna()
+
+            fig_sc = px.scatter(
+                scatter_df, x="ets_density_kb", y="composite_score",
+                color="composite_rank",
+                color_continuous_scale="Blues_r",
+                hover_data=["label", "composite_rank", "chrom"],
+                labels={"ets_density_kb": "ETS motifs / kb",
+                        "composite_score": "Composite Score",
+                        "composite_rank": "Rank"},
+            )
+            # Stable stars
+            stable_sub = scatter_df[scatter_df["is_stable"]]
+            if len(stable_sub):
+                fig_sc.add_trace(go.Scatter(
+                    x=stable_sub["ets_density_kb"], y=stable_sub["composite_score"],
+                    mode="markers",
+                    marker=dict(size=14, symbol="star", color=C_AMBER,
+                                line=dict(width=1.5, color="white")),
+                    name="100% stable",
+                    hovertext=stable_sub["label"], hoverinfo="text",
+                ))
+            apply_template(fig_sc, height=300)
+            fig_sc.update_layout(coloraxis_showscale=False)
+            st.plotly_chart(fig_sc, use_container_width=True)
+        else:
+            st.info("ETS data not available.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: CANDIDATE DETAIL
 # ══════════════════════════════════════════════════════════════════════════════
 elif page == "Candidate Detail":
+    import re as _re
+
     st.title("Candidate Detail")
 
-    # Selector — known UCOEs first, then all candidates
     sorted_scored = scored.sort_values("composite_rank")
     options = []
     for _, r in sorted_scored.iterrows():
-        tag = " [Known UCOE]" if r["known_ucoe"] else ""
-        options.append(f"#{int(r['composite_rank'])} — {r['label']} ({r['chrom']}){tag}")
+        tag  = " ★ Known UCOE"   if r["known_ucoe"]                          else ""
+        stab = " · 100% stable"  if r["label"] in set(sens[sens["stability_pct"]==100]["label"].dropna()) else ""
+        options.append(f"#{int(r['composite_rank'])} — {r['label']} ({r['chrom']}){tag}{stab}")
 
-    # Move known UCOEs to top of list
-    known_options = [o for o in options if "[Known UCOE]" in o]
-    other_options = [o for o in options if "[Known UCOE]" not in o]
-    options_sorted = known_options + other_options
+    known_opts = [o for o in options if "★" in o]
+    other_opts = [o for o in options if "★" not in o]
+    options_sorted = known_opts + other_opts
 
-    st.caption("Known UCOEs are listed first for reference.")
+    st.caption("★ Known UCOEs and 100% weight-stable candidates are listed first.")
     selected = st.selectbox("Select candidate", options_sorted)
 
     rank = int(selected.split("#")[1].split(" ")[0])
-    cand = scored[scored["composite_rank"] == rank].iloc[0]
+    cand = scored_full[scored_full["composite_rank"] == rank].iloc[0]
 
-    # Header
-    col1, col2, col3 = st.columns([2, 1, 1])
-    with col1:
+    # ── Header ──
+    h1, h2, h3, h4 = st.columns([3, 1, 1, 1])
+    with h1:
         st.markdown(f"## {cand['label']}")
         known = cand["known_ucoe"]
         if known:
-            st.success(f"Known UCOE: **{known}**")
+            st.success(f"Experimentally validated UCOE: **{known}**")
+        if cand["label"] in set(sens[sens["stability_pct"]==100]["label"].dropna()):
+            st.info("**Weight-stable**: ranked in top 20 across all 29 weight combinations.")
         st.markdown(
-            f"**{cand['chrom']}:{cand['start']:,}-{cand['end']:,}**  \n"
-            f"Length: {cand['length']:,} bp | "
-            f"Type: {cand['pair_type']} | "
+            f"**{cand['chrom']}:{cand['start']:,}–{cand['end']:,}** &nbsp;·&nbsp; "
+            f"{cand['length']:,} bp &nbsp;·&nbsp; "
+            f"Type: {cand.get('pair_type', 'N/A')} &nbsp;·&nbsp; "
             f"Inter-TSS: {cand['inter_tss_distance']:,} bp"
         )
-    with col2:
+    with h2:
         st.metric("Rank", f"#{int(cand['composite_rank'])}")
         st.metric("Score", f"{cand['composite_score']:.4f}")
-    with col3:
+    with h3:
         st.metric("Mahalanobis", f"{cand['mahalanobis_dist']:.3f}")
         st.metric("Cosine Sim", f"{cand['cosine_sim']:.3f}")
+    with h4:
+        stab_row = sens[sens["label"] == cand["label"]]
+        if len(stab_row):
+            st.metric("Weight stability", f"{stab_row.iloc[0]['stability_pct']:.0f}%")
+        else:
+            st.metric("Weight stability", "—")
+        st.metric("CpG overlap", f"{cand['cpg_overlap_fraction']*100:.1f}%")
 
     st.markdown("---")
 
-    # Epigenomic profile
+    # ── Epigenomic profile ──
     st.subheader("Epigenomic Profile")
-    col_a, col_b = st.columns([1, 1])
+    col_radar, col_repr = st.columns(2)
 
-    with col_a:
-        # Radar chart
-        features_radar = [
-            "H3K4me3_mean", "H3K27ac_mean", "H3K9ac_mean", "H3K36me3_mean",
-            "DNase_mean", "repliseq_mean",
-        ]
-        labels_radar = ["H3K4me3", "H3K27ac", "H3K9ac", "H3K36me3", "DNase", "Repli-seq"]
+    with col_radar:
+        features_radar = ["H3K4me3_mean", "H3K27ac_mean", "H3K9ac_mean",
+                          "H3K36me3_mean", "DNase_mean", "repliseq_mean"]
+        labels_radar   = ["H3K4me3", "H3K27ac", "H3K9ac", "H3K36me3", "DNase", "Repli-seq"]
 
-        # Normalize to 0-1 by min-max across all candidates
-        vals_cand = []
-        vals_ref = []
+        vals_cand, vals_ref = [], []
         for f in features_radar:
-            fmin = scored[f].min()
-            fmax = scored[f].max()
-            rng = fmax - fmin if fmax - fmin > 0 else 1
+            fmin = scored[f].min(); fmax = scored[f].max()
+            rng  = fmax - fmin if fmax != fmin else 1
             vals_cand.append((cand[f] - fmin) / rng)
             vals_ref.append((ref[f].mean() - fmin) / rng)
 
         fig_radar = go.Figure()
         fig_radar.add_trace(go.Scatterpolar(
-            r=vals_cand + [vals_cand[0]],
-            theta=labels_radar + [labels_radar[0]],
+            r=vals_cand + [vals_cand[0]], theta=labels_radar + [labels_radar[0]],
             fill="toself", name=cand["label"],
-            line_color="#2196F3", fillcolor="rgba(33,150,243,0.2)",
+            line_color=C_BLUE, fillcolor="rgba(21,101,192,0.15)",
         ))
         fig_radar.add_trace(go.Scatterpolar(
-            r=vals_ref + [vals_ref[0]],
-            theta=labels_radar + [labels_radar[0]],
+            r=vals_ref + [vals_ref[0]], theta=labels_radar + [labels_radar[0]],
             fill="toself", name="UCOE Reference",
-            line_color="#E74C3C", fillcolor="rgba(231,76,60,0.1)",
+            line_color=C_RED, fillcolor="rgba(198,40,40,0.08)",
+            line_dash="dot",
         ))
         fig_radar.update_layout(
             polar=dict(
-                radialaxis=dict(visible=True, range=[0, 1]),
+                radialaxis=dict(visible=True, range=[0, 1], tickfont=dict(size=9)),
                 angularaxis=dict(tickfont=dict(size=12)),
             ),
-            title="Active Marks (normalized)",
-            height=450,
-            margin=dict(l=80, r=80, t=60, b=40),
-            legend=dict(x=0.5, y=-0.15, xanchor="center", orientation="h"),
+            title="Active Marks (min-max normalised)",
+            height=400,
+            margin=dict(l=60, r=60, t=60, b=40),
+            legend=dict(x=0.5, y=-0.1, xanchor="center", orientation="h"),
+            font=dict(family="Inter, sans-serif"),
         )
         st.plotly_chart(fig_radar, use_container_width=True)
 
-    with col_b:
-        # Bar chart of repressive marks + methylation
+    with col_repr:
         marks = {
             "H3K27me3": cand["H3K27me3_mean"],
-            "H3K9me3": cand["H3K9me3_mean"],
+            "H3K9me3":  cand["H3K9me3_mean"],
             "Methylation (%)": cand["meth_mean"],
         }
         ref_marks = {
-            "H3K27me3": ref["H3K27me3_mean"].mean(),
-            "H3K9me3": ref["H3K9me3_mean"].mean(),
+            "H3K27me3":       ref["H3K27me3_mean"].mean(),
+            "H3K9me3":        ref["H3K9me3_mean"].mean(),
             "Methylation (%)": ref["meth_mean"].mean(),
         }
-
         fig_repr = go.Figure()
         fig_repr.add_trace(go.Bar(
             x=list(marks.keys()), y=list(marks.values()),
-            name=cand["label"], marker_color="#2196F3",
+            name=cand["label"], marker_color=C_BLUE, opacity=0.85,
         ))
         fig_repr.add_trace(go.Bar(
             x=list(ref_marks.keys()), y=list(ref_marks.values()),
-            name="UCOE Reference", marker_color="#E74C3C",
+            name="UCOE Reference", marker_color=C_RED, opacity=0.75,
         ))
+        apply_template(fig_repr, height=380)
         fig_repr.update_layout(
             barmode="group", title="Repressive Marks & Methylation",
-            height=400, yaxis_title="Signal / %",
+            yaxis_title="Signal / %",
         )
         st.plotly_chart(fig_repr, use_container_width=True)
 
-    # CpG Island info
+    # ── CpG properties ──
+    cp1, cp2, cp3 = st.columns(3)
+    cp1.metric("CpG Overlap",  f"{cand['cpg_overlap_fraction']*100:.1f}%")
+    cp2.metric("CpG Obs/Exp",  f"{cand['cpg_obs_exp']:.2f}")
+    cp3.metric("GC Content",   f"{min(cand['cpg_gc_pct'], 100):.0f}%")
+
     st.markdown("---")
-    st.subheader("CpG Island Properties")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("CpG Overlap", f"{cand['cpg_overlap_fraction']*100:.1f}%")
-    col2.metric("CpG Obs/Exp", f"{cand['cpg_obs_exp']:.1f}")
-    col3.metric("GC Content", f"{min(cand['cpg_gc_pct'], 100):.0f}%")
+
+    # ── Regulatory Signature (new) ──
+    st.subheader("Regulatory Sequence Signature")
+
+    has_int = integrated is not None and cand["label"] in integrated["label"].values
+    if has_int:
+        int_row = integrated[integrated["label"] == cand["label"]].iloc[0]
+
+        rs1, rs2, rs3, rs4 = st.columns(4)
+        rs1.metric("ETS motifs",      f"{int(int_row['n_ets'])}")
+        rs2.metric("ETS density",     f"{int_row['ets_density_kb']:.2f} / kb")
+        rs3.metric("ETS in NFR",
+                   f"{int(int_row['ets_in_nfr'])} / {int(int_row['n_ets'])}",
+                   help="ETS motifs within ±200 bp of a TSS")
+        rs4.metric("ETS NFR fraction", f"{int_row['frac_ets_in_nfr']*100:.0f}%")
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        rc1, rc2, rc3 = st.columns(3)
+
+        # PhyloP at ETS vs background
+        ets_phylop = int_row.get("ets_phylop_mean", np.nan)
+        bg_phylop  = int_row.get("phylop_mean", np.nan)
+        with rc1:
+            if not pd.isna(ets_phylop) and not pd.isna(bg_phylop):
+                ratio = ets_phylop / bg_phylop if bg_phylop != 0 else float("nan")
+                st.markdown(f"""
+                <div style="background:{C_BGCARD};border:1px solid {C_BORDER};
+                            border-radius:10px;padding:18px">
+                <div style="font-size:0.8rem;font-weight:600;color:{C_GRAY};
+                            text-transform:uppercase;letter-spacing:0.04em">
+                PhyloP Conservation</div>
+                <div style="font-size:1.4rem;font-weight:700;color:{C_NAVY};margin:6px 0">
+                {ets_phylop:.3f} <span style="font-size:0.9rem;color:{C_GRAY}">at ETS</span></div>
+                <div style="font-size:0.95rem;color:{C_GRAY}">
+                {bg_phylop:.3f} background</div>
+                {"<div style='color:"+C_GREEN+";font-size:0.85rem;margin-top:6px;font-weight:600'>▲ ETS under stronger purifying selection</div>" if ets_phylop > bg_phylop else ""}
+                </div>""", unsafe_allow_html=True)
+            else:
+                st.metric("PhyloP (background)", f"{bg_phylop:.3f}" if not pd.isna(bg_phylop) else "—")
+
+        with rc2:
+            feat_score = int(int_row.get("feature_score", 0))
+            bar = "●" * feat_score + "○" * (4 - feat_score)
+            color = [C_RED, C_AMBER, C_TEAL, C_BLUE, C_GREEN][feat_score]
+            st.markdown(f"""
+            <div style="background:{C_BGCARD};border:1px solid {C_BORDER};
+                        border-radius:10px;padding:18px">
+            <div style="font-size:0.8rem;font-weight:600;color:{C_GRAY};
+                        text-transform:uppercase;letter-spacing:0.04em">
+            Regulatory Feature Score</div>
+            <div style="font-size:1.8rem;font-weight:700;color:{color};margin:6px 0">
+            {feat_score} / 4</div>
+            <div style="font-size:1.2rem;color:{color};letter-spacing:4px">{bar}</div>
+            <div style="color:{C_GRAY};font-size:0.82rem;margin-top:6px">
+            ETS count + NFR positioning + conservation + dimer/palindrome</div>
+            </div>""", unsafe_allow_html=True)
+
+        with rc3:
+            ww = int_row.get("ww_fraction", np.nan)
+            ss = int_row.get("ss_fraction", np.nan)
+            if not pd.isna(ww):
+                st.markdown(f"""
+                <div style="background:{C_BGCARD};border:1px solid {C_BORDER};
+                            border-radius:10px;padding:18px">
+                <div style="font-size:0.8rem;font-weight:600;color:{C_GRAY};
+                            text-transform:uppercase;letter-spacing:0.04em">
+                Dinucleotide Composition</div>
+                <div style="margin:8px 0">
+                  <span style="font-weight:700;color:{C_RED}">WW</span>
+                  <span style="color:{C_NAVY};font-weight:600"> {ww:.3f}</span>
+                  <span style="color:{C_GRAY};font-size:0.8rem">
+                  {'▲ above median' if ww > REF_CAND_WW else '▼ below median'}</span>
+                </div>
+                <div>
+                  <span style="font-weight:700;color:{C_BLUE}">SS</span>
+                  <span style="color:{C_NAVY};font-weight:600"> {ss:.3f}</span>
+                  <span style="color:{C_GRAY};font-size:0.8rem">
+                  {'▼ below median' if ss < REF_CAND_SS else '▲ above median'}</span>
+                </div>
+                <div style="color:{C_GRAY};font-size:0.8rem;margin-top:8px">
+                Candidate median WW {REF_CAND_WW:.3f} · SS {REF_CAND_SS:.3f}</div>
+                </div>""", unsafe_allow_html=True)
+    else:
+        st.info("Integrated classification data not available for this candidate.")
+
+    st.markdown("---")
 
     # ── DNA Biophysical Properties ──
-    st.markdown("---")
-    st.subheader("DNA Biophysical Properties — Nucleosome Exclusion Assessment")
+    st.subheader("DNA Biophysical Properties")
 
     if struct_cand is not None:
-        # Find this candidate in structural data
         struct_row = None
         for _, sr in struct_cand.iterrows():
             h = str(sr.get("header", ""))
@@ -393,279 +855,216 @@ elif page == "Candidate Detail":
                 break
 
         if struct_row is not None:
-            ww_val = struct_row['ww_fraction']
-            ss_val = struct_row['ss_fraction']
-            nuc_val = struct_row['nuc_score_mean']
-            entropy_val = struct_row['dinuc_entropy']
-            gc_val = struct_row['gc_content']
+            ww_val      = struct_row["ww_fraction"]
+            ss_val      = struct_row["ss_fraction"]
+            nuc_val     = struct_row["nuc_score_mean"]
+            entropy_val = struct_row["dinuc_entropy"]
+            gc_val      = struct_row["gc_content"]
 
-            # Reference values computed from loaded structural data
-            ctrl_ww = struct_ctrl["ww_fraction"].median() if struct_ctrl is not None and len(struct_ctrl) > 0 else 0.081
-            ctrl_ss = struct_ctrl["ss_fraction"].median() if struct_ctrl is not None and len(struct_ctrl) > 0 else 0.474
-            ucoe_ww = struct_cand["ww_fraction"].median() if len(struct_cand) > 0 else 0.112
-            ucoe_ss = struct_cand["ss_fraction"].median() if len(struct_cand) > 0 else 0.431
-
-            # ── Interpretation panel ──
-            st.markdown("##### Nucleosome exclusion mechanism")
             st.markdown("""
-            UCOEs maintain open chromatin partly through **DNA composition**: sequences enriched
-            in WW dinucleotides (AA, AT, TA, TT) have lower thermodynamic affinity for histone
-            octamers, creating a **sequence-intrinsic barrier to nucleosome formation**. This is
-            independent of epigenetic marks — it is encoded in the DNA sequence itself.
+            UCOEs maintain open chromatin partly through **DNA composition**: WW dinucleotides
+            (AA, AT, TA, TT) reduce thermodynamic affinity for histone octamers, creating a
+            **sequence-intrinsic barrier to nucleosome formation** independent of epigenetic state.
             """)
 
-            # ── WW vs SS horizontal bar comparison ──
             fig_bio = make_subplots(
-                rows=2, cols=1, vertical_spacing=0.25,
+                rows=2, cols=1, vertical_spacing=0.28,
                 subplot_titles=(
-                    "WW Fraction (AA+AT+TA+TT) — higher = disfavors nucleosomes",
-                    "SS Fraction (CC+CG+GC+GG) — lower = disfavors nucleosomes",
+                    "WW Fraction (AA+AT+TA+TT) — higher disfavours nucleosomes",
+                    "SS Fraction (CC+CG+GC+GG) — lower disfavours nucleosomes",
                 ),
             )
-
-            bar_height = 0.35
-            # WW bars
-            fig_bio.add_trace(go.Bar(y=["This candidate"], x=[ww_val], orientation="h",
-                                      marker_color="#E53935", name="This candidate", width=bar_height,
-                                      text=[f"{ww_val:.3f}"], textposition="outside"), row=1, col=1)
-            fig_bio.add_trace(go.Bar(y=["UCOE candidates (median)"], x=[ucoe_ww], orientation="h",
-                                      marker_color="#FF8A65", name="UCOE candidates", width=bar_height,
-                                      text=[f"{ucoe_ww:.3f}"], textposition="outside"), row=1, col=1)
-            fig_bio.add_trace(go.Bar(y=["CpG island controls"], x=[ctrl_ww], orientation="h",
-                                      marker_color="#BDBDBD", name="Controls", width=bar_height,
-                                      text=[f"{ctrl_ww:.3f}"], textposition="outside"), row=1, col=1)
-
-            # SS bars
-            fig_bio.add_trace(go.Bar(y=["This candidate"], x=[ss_val], orientation="h",
-                                      marker_color="#1E88E5", width=bar_height, showlegend=False,
-                                      text=[f"{ss_val:.3f}"], textposition="outside"), row=2, col=1)
-            fig_bio.add_trace(go.Bar(y=["UCOE candidates (median)"], x=[ucoe_ss], orientation="h",
-                                      marker_color="#64B5F6", width=bar_height, showlegend=False,
-                                      text=[f"{ucoe_ss:.3f}"], textposition="outside"), row=2, col=1)
-            fig_bio.add_trace(go.Bar(y=["CpG island controls"], x=[ctrl_ss], orientation="h",
-                                      marker_color="#BDBDBD", width=bar_height, showlegend=False,
-                                      text=[f"{ctrl_ss:.3f}"], textposition="outside"), row=2, col=1)
+            bh = 0.35
+            for row_i, (this_v, ref_v, ctrl_v, col_this, col_ref) in enumerate([
+                (ww_val, REF_CAND_WW, REF_CTRL_WW, C_RED,  "#FF8A65"),
+                (ss_val, REF_CAND_SS, REF_CTRL_SS, C_BLUE, "#64B5F6"),
+            ], 1):
+                fig_bio.add_trace(go.Bar(
+                    y=["This candidate"], x=[this_v], orientation="h",
+                    marker_color=col_this, width=bh, showlegend=(row_i == 1),
+                    text=[f"{this_v:.3f}"], textposition="outside", name="This candidate",
+                ), row=row_i, col=1)
+                fig_bio.add_trace(go.Bar(
+                    y=["UCOE candidates (median)"], x=[ref_v], orientation="h",
+                    marker_color=col_ref, width=bh, showlegend=(row_i == 1),
+                    text=[f"{ref_v:.3f}"], textposition="outside", name="UCOE median",
+                ), row=row_i, col=1)
+                fig_bio.add_trace(go.Bar(
+                    y=["CpG island controls"], x=[ctrl_v], orientation="h",
+                    marker_color="#BDBDBD", width=bh, showlegend=(row_i == 1),
+                    text=[f"{ctrl_v:.3f}"], textposition="outside", name="Controls",
+                ), row=row_i, col=1)
 
             fig_bio.update_layout(
-                height=320, showlegend=False,
-                margin=dict(l=10, r=60, t=40, b=10),
+                height=340, showlegend=True,
+                margin=dict(l=10, r=70, t=50, b=10),
+                legend=dict(orientation="h", x=0.5, y=-0.05, xanchor="center"),
+                font=dict(family="Inter, sans-serif", size=12),
             )
-            fig_bio.update_xaxes(range=[0, max(ww_val, ucoe_ww, ctrl_ww) * 1.3], row=1, col=1)
-            fig_bio.update_xaxes(range=[0, max(ss_val, ucoe_ss, ctrl_ss) * 1.15], row=2, col=1)
-
             st.plotly_chart(fig_bio, use_container_width=True)
 
-            # ── Automatic interpretation ──
+            # Assessment
             assessments = []
-            if ww_val >= ucoe_ww:
-                assessments.append(("WW enrichment", "FAVORABLE", "WW fraction is at or above the UCOE candidate median — this sequence has elevated A/T-rich dinucleotides that disfavor nucleosome wrapping."))
-            elif ww_val >= ctrl_ww:
-                assessments.append(("WW enrichment", "MODERATE", "WW fraction is above generic CpG islands but below the UCOE candidate median."))
+            if ww_val >= REF_CAND_WW:
+                assessments.append(("WW enrichment", "FAVORABLE", C_GREEN,
+                    "WW fraction ≥ candidate median — elevated A/T dinucleotides disfavour nucleosome wrapping."))
+            elif ww_val >= REF_CTRL_WW:
+                assessments.append(("WW enrichment", "MODERATE", C_AMBER,
+                    "WW fraction above generic CpG island controls but below candidate median."))
             else:
-                assessments.append(("WW enrichment", "LOW", "WW fraction is below generic CpG island controls — this region does not show the WW enrichment typical of UCOE candidates."))
+                assessments.append(("WW enrichment", "LOW", C_RED,
+                    "WW fraction below CpG island controls — no WW enrichment detected."))
 
-            if ss_val <= ucoe_ss:
-                assessments.append(("SS depletion", "FAVORABLE", "SS fraction is at or below the UCOE candidate median — reduced stacking energy disfavors stable nucleosome formation."))
-            elif ss_val <= ctrl_ss:
-                assessments.append(("SS depletion", "MODERATE", "SS fraction is below generic CpG islands but above the UCOE candidate median."))
+            if ss_val <= REF_CAND_SS:
+                assessments.append(("SS depletion", "FAVORABLE", C_GREEN,
+                    "SS fraction ≤ candidate median — reduced stacking energy disfavours stable nucleosomes."))
+            elif ss_val <= REF_CTRL_SS:
+                assessments.append(("SS depletion", "MODERATE", C_AMBER,
+                    "SS fraction below controls but above candidate median."))
             else:
-                assessments.append(("SS depletion", "LOW", "SS fraction is above generic CpG island controls — high SS content favors nucleosome stability."))
+                assessments.append(("SS depletion", "LOW", C_RED,
+                    "High SS content — favours nucleosome stability."))
 
             if entropy_val >= 3.55:
-                assessments.append(("Compositional diversity", "FAVORABLE", f"Dinucleotide entropy ({entropy_val:.3f}) is high, indicating diverse composition that disrupts regular nucleosome positioning signals."))
+                assessments.append(("Compositional diversity", "FAVORABLE", C_GREEN,
+                    f"Dinucleotide entropy {entropy_val:.3f} — diverse composition disrupts nucleosome positioning signals."))
             else:
-                assessments.append(("Compositional diversity", "MODERATE", f"Dinucleotide entropy ({entropy_val:.3f}) is moderate."))
+                assessments.append(("Compositional diversity", "MODERATE", C_AMBER,
+                    f"Dinucleotide entropy {entropy_val:.3f} — moderate compositional diversity."))
 
-            status_colors = {"FAVORABLE": "#2E7D32", "MODERATE": "#F57F17", "LOW": "#C62828"}
+            st.markdown("**Biophysical Assessment**")
+            for criterion, status, color, explanation in assessments:
+                st.markdown(
+                    f"**{criterion}**: "
+                    f"<span style='color:{color};font-weight:700'>{status}</span>"
+                    f" — {explanation}",
+                    unsafe_allow_html=True,
+                )
 
-            st.markdown("##### Assessment")
-            for criterion, status, explanation in assessments:
-                color = status_colors[status]
-                st.markdown(f"**{criterion}**: <span style='color:{color};font-weight:bold'>{status}</span> — {explanation}", unsafe_allow_html=True)
-
-            # Overall nucleosome exclusion verdict
-            n_favorable = sum(1 for _, s, _ in assessments if s == "FAVORABLE")
-            if n_favorable >= 2:
-                st.success(f"This candidate shows {n_favorable}/3 favorable biophysical properties for nucleosome exclusion — consistent with UCOE-like sequence composition.")
-            elif n_favorable >= 1:
-                st.warning(f"This candidate shows {n_favorable}/3 favorable biophysical properties — partial nucleosome exclusion signature.")
+            n_fav = sum(1 for _, s, _, _ in assessments if s == "FAVORABLE")
+            if n_fav >= 2:
+                st.success(f"{n_fav}/3 biophysical criteria FAVORABLE — consistent with UCOE-like sequence composition.")
+            elif n_fav == 1:
+                st.warning(f"{n_fav}/3 biophysical criteria FAVORABLE — partial nucleosome exclusion signature.")
             else:
-                st.error("This candidate does not show biophysical properties consistent with nucleosome exclusion.")
+                st.error("No biophysical criteria FAVORABLE for nucleosome exclusion.")
 
-            # ── Detailed metrics (expandable) ──
             with st.expander("Detailed biophysical metrics"):
-                col_s1, col_s2, col_s3, col_s4 = st.columns(4)
-                col_s1.metric("WW Fraction", f"{ww_val:.3f}")
-                col_s2.metric("SS Fraction", f"{ss_val:.3f}")
-                col_s3.metric("Entropy", f"{entropy_val:.3f}")
-                col_s4.metric("Nuc. Score", f"{nuc_val:.4f}")
+                d1, d2, d3, d4 = st.columns(4)
+                d1.metric("WW Fraction",  f"{ww_val:.3f}")
+                d2.metric("SS Fraction",  f"{ss_val:.3f}")
+                d3.metric("Entropy",      f"{entropy_val:.3f}")
+                d4.metric("Nuc. Score",   f"{nuc_val:.4f}")
+                d5, d6, d7, d8 = st.columns(4)
+                d5.metric("Flexibility",  f"{struct_row['flexibility_mean']:.4f}")
+                d6.metric("Stiffness",    f"{struct_row['stiffness_mean']:.3f}")
+                d7.metric("GC Content",   f"{gc_val*100:.1f}%")
+                d8.metric("CpG Obs/Exp",  f"{struct_row['cpg_obs_exp']:.2f}")
 
-                col_s5, col_s6, col_s7, col_s8 = st.columns(4)
-                col_s5.metric("Flexibility", f"{struct_row['flexibility_mean']:.4f}")
-                col_s6.metric("Stiffness", f"{struct_row['stiffness_mean']:.3f}")
-                col_s7.metric("GC Content", f"{gc_val*100:.1f}%")
-                col_s8.metric("CpG Obs/Exp", f"{struct_row['cpg_obs_exp']:.2f}")
-
-            # ── Dinucleotide spectrum (expandable) ──
             with st.expander("Full dinucleotide spectrum"):
-                dinuc_cols = [f"dinuc_{d}" for d in
-                              ["AA", "AC", "AG", "AT", "CA", "CC", "CG", "CT",
-                               "GA", "GC", "GG", "GT", "TA", "TC", "TG", "TT"]]
+                dinuc_cols   = [f"dinuc_{d}" for d in
+                                ["AA","AC","AG","AT","CA","CC","CG","CT",
+                                 "GA","GC","GG","GT","TA","TC","TG","TT"]]
                 dinuc_labels = [d.replace("dinuc_", "") for d in dinuc_cols]
-                vals_this = [struct_row[c] for c in dinuc_cols]
-
-                ctrl_medians = [struct_ctrl[c].median() for c in dinuc_cols] if struct_ctrl is not None and len(struct_ctrl) > 0 else None
-                known_means = [struct_known[c].mean() for c in dinuc_cols] if struct_known is not None and len(struct_known) > 0 else None
-
-                ww_set = {"AA", "AT", "TA", "TT"}
-                ss_set = {"CC", "CG", "GC", "GG"}
-                colors = ["#E53935" if d in ww_set else "#1E88E5" if d in ss_set else "#9E9E9E"
-                          for d in dinuc_labels]
-
-                fig_dinuc = go.Figure()
-                fig_dinuc.add_trace(go.Bar(x=dinuc_labels, y=vals_this, name="This candidate",
-                                           marker_color=colors, opacity=0.85))
-                if ctrl_medians:
-                    fig_dinuc.add_trace(go.Scatter(x=dinuc_labels, y=ctrl_medians, mode="markers+lines",
-                                                    name="CpG island controls (median)",
-                                                    line=dict(color="#757575", width=1.5, dash="dash"),
-                                                    marker=dict(size=6, color="#757575")))
+                vals_this    = [struct_row[c] for c in dinuc_cols]
+                ctrl_meds    = [struct_ctrl[c].median() for c in dinuc_cols] if struct_ctrl is not None else None
+                known_means  = [struct_known[c].mean()  for c in dinuc_cols] if struct_known is not None else None
+                ww_set = {"AA","AT","TA","TT"}; ss_set = {"CC","CG","GC","GG"}
+                colors_d = [C_RED if d in ww_set else C_BLUE if d in ss_set else "#9E9E9E"
+                            for d in dinuc_labels]
+                fig_dn = go.Figure()
+                fig_dn.add_trace(go.Bar(x=dinuc_labels, y=vals_this, name="This candidate",
+                                        marker_color=colors_d, opacity=0.85))
+                if ctrl_meds:
+                    fig_dn.add_trace(go.Scatter(x=dinuc_labels, y=ctrl_meds,
+                                                mode="markers+lines", name="Controls (median)",
+                                                line=dict(color="#757575", width=1.5, dash="dash"),
+                                                marker=dict(size=5)))
                 if known_means:
-                    fig_dinuc.add_trace(go.Scatter(x=dinuc_labels, y=known_means, mode="markers+lines",
-                                                    name="Known UCOEs (mean)",
-                                                    line=dict(color="#FF6F00", width=2),
-                                                    marker=dict(size=7, color="#FF6F00", symbol="diamond")))
-
-                fig_dinuc.update_layout(title="Dinucleotide Spectrum", xaxis_title="Dinucleotide",
-                                         yaxis_title="Proportion", height=350,
-                                         legend=dict(orientation="h", yanchor="bottom", y=1.02, x=0.5, xanchor="center"),
-                                         margin=dict(l=50, r=30, t=60, b=40))
-                st.plotly_chart(fig_dinuc, use_container_width=True)
-                st.caption("**WW** (red) = AA, AT, TA, TT — disfavor nucleosomes. "
-                           "**SS** (blue) = CC, CG, GC, GG — favor nucleosomes. "
-                           "**SW/WS** (gray) = mixed.")
+                    fig_dn.add_trace(go.Scatter(x=dinuc_labels, y=known_means,
+                                                mode="markers+lines", name="Known UCOEs (mean)",
+                                                line=dict(color=C_AMBER, width=2),
+                                                marker=dict(size=7, symbol="diamond")))
+                apply_template(fig_dn, height=320)
+                fig_dn.update_layout(title="Dinucleotide Spectrum",
+                                     xaxis_title="Dinucleotide", yaxis_title="Proportion")
+                st.plotly_chart(fig_dn, use_container_width=True)
+                st.caption("**WW** (red) = AA, AT, TA, TT — disfavour nucleosomes. "
+                           "**SS** (blue) = CC, CG, GC, GG — favour nucleosomes.")
         else:
             st.info("Structural data not available for this candidate.")
     else:
         st.info("Structural data files not found.")
 
-    # ── Composite genomic figure ──
     st.markdown("---")
+
+    # ── Genomic Profile ──
     st.subheader("Genomic Profile")
 
-    import re as _re
-
-    # Parse FASTA
-    @st.cache_data
-    def load_fasta_sequences():
-        seqs = {}
-        fasta_path = DATA_DIR / "ucoe_sequences.fa"
-        if not fasta_path.exists():
-            return seqs
-        header, seq_lines = None, []
-        for line in fasta_path.read_text().splitlines():
-            if line.startswith(">"):
-                if header and seq_lines:
-                    seqs[header] = "".join(seq_lines).upper()
-                header = line[1:].split()[0]
-                seq_lines = []
-            else:
-                seq_lines.append(line.strip())
-        if header and seq_lines:
-            seqs[header] = "".join(seq_lines).upper()
-        return seqs
-
-    # Load pre-computed conservation (top 50)
-    @st.cache_data
-    def load_conservation_top50():
-        npz_path = DATA_DIR / "conservation_top50.npz"
-        if npz_path.exists():
-            return dict(np.load(npz_path, allow_pickle=True))
-        return {}
-
-    fasta_seqs = load_fasta_sequences()
+    fasta_seqs        = load_fasta_sequences()
     conservation_data = load_conservation_top50()
 
-    # Find sequence
     seq_key = None
     for key in fasta_seqs:
         if cand["gene1"] in key and cand["gene2"] in key:
-            seq_key = key
-            break
+            seq_key = key; break
         if str(cand["start"]) in key and str(cand["end"]) in key:
-            seq_key = key
-            break
+            seq_key = key; break
 
     if seq_key and seq_key in fasta_seqs:
-        seq = fasta_seqs[seq_key]
-        length = len(seq)
-        window = 100
+        seq = fasta_seqs[seq_key]; length = len(seq); window = 100
 
-        # ETS motifs
         ets_fwd = [(m.start(), m.end(), "+", m.group()) for m in _re.finditer(r"CGGAA[GA]", seq)]
         ets_rev = [(m.start(), m.end(), "-", m.group()) for m in _re.finditer(r"[TC]TTCCG", seq)]
         ets_all = sorted(ets_fwd + ets_rev, key=lambda x: x[0])
 
-        # NFR regions (±200 bp around each TSS)
         orig_start_rel = int(cand["orig_start"]) - int(cand["start"])
-        orig_end_rel = int(cand["orig_end"]) - int(cand["start"])
-        tss1 = orig_start_rel
-        tss2 = orig_end_rel
+        orig_end_rel   = int(cand["orig_end"])   - int(cand["start"])
+        tss1, tss2 = orig_start_rel, orig_end_rel
         nfr_regions = [
             (max(0, tss1 - 200), min(length, tss1 + 200)),
             (max(0, tss2 - 200), min(length, tss2 + 200)),
         ]
 
-        # GC content
-        gc_pos, gc_vals = [], []
+        gc_pos, gc_vals, cpg_pos, cpg_vals = [], [], [], []
         for i in range(0, length - window + 1, window // 2):
             w = seq[i:i + window]
             gc_pos.append(i + window // 2)
             gc_vals.append((w.count("G") + w.count("C")) / len(w) * 100)
-
-        # CpG density
-        cpg_pos, cpg_vals = [], []
-        for i in range(0, length - window + 1, window // 2):
             cpg_pos.append(i + window // 2)
-            cpg_vals.append(seq[i:i + window].count("CG"))
+            cpg_vals.append(w.count("CG"))
 
-        # ETS density
         ets_dens_pos, ets_dens_vals = [], []
         for i in range(0, length - 200 + 1, 100):
             ets_dens_pos.append(i + 100)
             ets_dens_vals.append(sum(1 for s, *_ in ets_all if i <= s < i + 200))
 
-        # Check for conservation data
         cons_key = f"{cand['gene1']}_{cand['gene2']}"
-        has_conservation = cons_key in conservation_data
+        has_cons = cons_key in conservation_data
         phylop_arr = conservation_data.get(cons_key, None)
 
-        # ── Panel selector ──
-        available_panels = ["Gene Structure, ETS & NFR"]
-        if has_conservation:
-            available_panels.insert(0, "PhyloP Conservation")
-        available_panels += ["GC Content & CpG Density", "CpG Island", "ETS Motif Density"]
+        available_panels = []
+        if has_cons:
+            available_panels.append("PhyloP Conservation")
+        available_panels += ["Gene Structure, ETS & NFR",
+                             "GC Content & CpG Density",
+                             "CpG Island", "ETS Motif Density"]
 
         selected_panels = st.multiselect(
-            "Select and reorder panels",
-            available_panels,
-            default=available_panels,
-            help="Drag to reorder. Remove panels you don't need.",
+            "Select panels", available_panels, default=available_panels,
+            help="Remove panels you don't need.",
         )
 
-        if not selected_panels:
-            st.info("Select at least one panel to display.")
-        else:
-            # ── Build figure with selected panels in order ──
-            n_rows = len(selected_panels)
+        if selected_panels:
             height_map = {
-                "PhyloP Conservation": 0.3,
-                "Gene Structure, ETS & NFR": 0.3,
+                "PhyloP Conservation": 0.30,
+                "Gene Structure, ETS & NFR": 0.30,
                 "GC Content & CpG Density": 0.25,
-                "CpG Island": 0.1,
+                "CpG Island": 0.10,
                 "ETS Motif Density": 0.15,
             }
             row_heights = [height_map.get(p, 0.2) for p in selected_panels]
+            n_rows = len(selected_panels)
 
             fig_comp = make_subplots(
                 rows=n_rows, cols=1, shared_xaxes=True,
@@ -673,237 +1072,447 @@ elif page == "Candidate Detail":
                 subplot_titles=selected_panels,
             )
 
-            for panel_idx, panel_name in enumerate(selected_panels):
-                row = panel_idx + 1
-
-                if panel_name == "PhyloP Conservation" and has_conservation:
+            for idx, panel in enumerate(selected_panels):
+                row = idx + 1
+                if panel == "PhyloP Conservation" and has_cons:
                     from scipy.ndimage import uniform_filter1d
-                    phylop_smooth = uniform_filter1d(np.nan_to_num(phylop_arr, nan=0.0), size=20)
-                    fig_comp.add_trace(
-                        go.Scatter(x=list(range(len(phylop_smooth))), y=phylop_smooth, mode="lines",
-                                   name="PhyloP", line=dict(color="#2196F3", width=1),
-                                   fill="tozeroy", fillcolor="rgba(33,150,243,0.15)"),
+                    smooth = uniform_filter1d(np.nan_to_num(phylop_arr, nan=0.0), size=20)
+                    fig_comp.add_trace(go.Scatter(
+                        x=list(range(len(smooth))), y=smooth, mode="lines",
+                        name="PhyloP", line=dict(color=C_BLUE, width=1.2),
+                        fill="tozeroy", fillcolor="rgba(21,101,192,0.12)"),
                         row=row, col=1)
-                    for y_val, label, color, dash in [
-                        (3.0, "Exceptional", "#B71C1C", "dot"), (2.0, "Strong", "#E65100", "dot"),
-                        (1.0, "Significant", "#F9A825", "dot"), (0.0, "Neutral", "#9E9E9E", "dash"),
-                        (-1.0, "Accelerated", "#1565C0", "dot")]:
-                        fig_comp.add_hline(y=y_val, line_dash=dash, line_color=color, opacity=0.5,
-                                           row=row, col=1, annotation_text=label,
-                                           annotation_position="right",
-                                           annotation_font=dict(size=9, color=color))
-                    y_max = float(np.nanmax(phylop_smooth)) + 0.5
-                    y_min = float(np.nanmin(phylop_smooth)) - 0.5
-                    for y0, y1, fc in [(3.0, max(y_max, 3.5), "rgba(183,28,28,0.06)"),
-                                       (2.0, 3.0, "rgba(230,81,0,0.05)"),
-                                       (1.0, 2.0, "rgba(249,168,37,0.05)"),
-                                       (min(y_min, -1.5), -1.0, "rgba(21,101,192,0.06)")]:
-                        fig_comp.add_hrect(y0=y0, y1=y1, fillcolor=fc, line_width=0, row=row, col=1)
-                    for nfr_s, nfr_e in nfr_regions:
-                        fig_comp.add_vrect(x0=nfr_s, x1=nfr_e, fillcolor="rgba(66,165,245,0.08)",
-                                           line_width=0, row=row, col=1)
-                    for s, e, strand, mseq in ets_all:
-                        fig_comp.add_vrect(x0=s, x1=e, fillcolor="rgba(255,215,0,0.4)",
+                    for yv, lbl, col, dash in [
+                        (2.0, "Strong", C_RED, "dot"),
+                        (1.0, "Significant", C_AMBER, "dot"),
+                        (0.0, "Neutral", "#9E9E9E", "dash"),
+                    ]:
+                        fig_comp.add_hline(y=yv, line_dash=dash, line_color=col,
+                                           opacity=0.5, row=row, col=1,
+                                           annotation_text=lbl, annotation_position="right",
+                                           annotation_font=dict(size=9, color=col))
+                    for s, e, _, _ in ets_all:
+                        fig_comp.add_vrect(x0=s, x1=e, fillcolor="rgba(255,215,0,0.35)",
                                            line_width=0, row=row, col=1)
                     fig_comp.update_yaxes(title_text="PhyloP", row=row, col=1)
 
-                elif panel_name == "GC Content & CpG Density":
-                    fig_comp.add_trace(
-                        go.Scatter(x=gc_pos, y=gc_vals, mode="lines", name="GC %",
-                                   line=dict(color="#00897B", width=1.5),
-                                   fill="tozeroy", fillcolor="rgba(0,137,123,0.12)"),
+                elif panel == "GC Content & CpG Density":
+                    fig_comp.add_trace(go.Scatter(
+                        x=gc_pos, y=gc_vals, mode="lines", name="GC %",
+                        line=dict(color=C_TEAL, width=1.5),
+                        fill="tozeroy", fillcolor="rgba(0,131,143,0.10)"),
                         row=row, col=1)
-                    fig_comp.add_trace(
-                        go.Bar(x=cpg_pos, y=[v * 3 for v in cpg_vals], name="CpG (scaled)",
-                               marker_color="rgba(255,143,0,0.4)", width=window * 0.4),
+                    fig_comp.add_trace(go.Bar(
+                        x=cpg_pos, y=[v * 3 for v in cpg_vals], name="CpG (×3)",
+                        marker_color="rgba(255,143,0,0.4)", width=window * 0.4),
                         row=row, col=1)
-                    fig_comp.add_hline(y=50, line_dash="dot", line_color="gray", opacity=0.4, row=row, col=1)
+                    fig_comp.add_hline(y=50, line_dash="dot", line_color="#9E9E9E",
+                                       opacity=0.4, row=row, col=1)
                     fig_comp.update_yaxes(title_text="GC %", row=row, col=1)
 
-                elif panel_name == "CpG Island":
+                elif panel == "CpG Island":
                     cpg_cov = cand["cpg_overlap_fraction"]
                     cpg_end = int(length * cpg_cov)
                     fig_comp.add_shape(type="rect", x0=0, x1=cpg_end, y0=0.1, y1=0.9,
-                                       fillcolor="rgba(129,199,132,0.6)",
-                                       line=dict(color="#388E3C", width=1.5), row=row, col=1)
+                                       fillcolor="rgba(129,199,132,0.55)",
+                                       line=dict(color=C_GREEN, width=1.5), row=row, col=1)
                     fig_comp.add_annotation(x=cpg_end / 2, y=0.5,
-                                            text=f"CpG Island — {cpg_cov*100:.1f}% (obs/exp={cand['cpg_obs_exp']:.1f})",
-                                            showarrow=False, font=dict(size=11, color="#1B5E20"),
-                                            row=row, col=1)
+                                            text=f"CpG Island — {cpg_cov*100:.1f}% "
+                                                 f"(obs/exp={cand['cpg_obs_exp']:.1f})",
+                                            showarrow=False,
+                                            font=dict(size=11, color="#1B5E20"), row=row, col=1)
                     fig_comp.update_yaxes(visible=False, range=[0, 1], row=row, col=1)
 
-                elif panel_name == "ETS Motif Density":
-                    fig_comp.add_trace(
-                        go.Bar(x=ets_dens_pos, y=ets_dens_vals, name="ETS/window",
-                               marker_color="rgba(231,76,60,0.6)", width=80),
+                elif panel == "ETS Motif Density":
+                    fig_comp.add_trace(go.Bar(
+                        x=ets_dens_pos, y=ets_dens_vals, name="ETS / 200 bp",
+                        marker_color="rgba(198,40,40,0.6)", width=80),
                         row=row, col=1)
-                    fig_comp.update_yaxes(title_text="ETS / 200bp", row=row, col=1)
+                    fig_comp.update_yaxes(title_text="ETS / 200 bp", row=row, col=1)
 
-                elif panel_name == "Gene Structure, ETS & NFR":
-                    # NFR rectangles
-                    for nfr_start, nfr_end in nfr_regions:
-                        fig_comp.add_shape(type="rect", x0=nfr_start, x1=nfr_end, y0=-1.3, y1=1.3,
-                                           fillcolor="rgba(66,165,245,0.10)",
-                                           line=dict(color="#1565C0", width=1.5, dash="dash"),
+                elif panel == "Gene Structure, ETS & NFR":
+                    for nfr_s, nfr_e in nfr_regions:
+                        fig_comp.add_shape(type="rect", x0=nfr_s, x1=nfr_e,
+                                           y0=-1.3, y1=1.3,
+                                           fillcolor="rgba(66,165,245,0.09)",
+                                           line=dict(color=C_BLUE, width=1.2, dash="dash"),
                                            row=row, col=1)
-                        fig_comp.add_annotation(x=(nfr_start + nfr_end) / 2, y=1.25,
-                                                text="<b>NFR</b><br><span style='font-size:9px'>±200 bp</span>",
-                                                showarrow=False, font=dict(size=10, color="#1565C0"),
-                                                row=row, col=1)
-                    # TSS lines
-                    for tss_pos in [tss1, tss2]:
-                        fig_comp.add_shape(type="line", x0=tss_pos, x1=tss_pos, y0=-1.3, y1=1.3,
-                                           line=dict(color="#0D47A1", width=2), row=row, col=1)
-                        fig_comp.add_annotation(x=tss_pos, y=-1.35, text="<b>TSS</b>", showarrow=False,
-                                                font=dict(size=9, color="#0D47A1"), row=row, col=1)
-                    # Genes
-                    fig_comp.add_shape(type="line", x0=tss1, x1=length * 0.95, y0=0.6, y1=0.6,
-                                       line=dict(color="#2E86C1", width=6), row=row, col=1)
-                    fig_comp.add_annotation(x=(tss1 + length * 0.95) / 2, y=0.85,
+                        fig_comp.add_annotation(x=(nfr_s+nfr_e)/2, y=1.22,
+                                                text="<b>NFR</b>", showarrow=False,
+                                                font=dict(size=10, color=C_BLUE), row=row, col=1)
+                    for tss_p in [tss1, tss2]:
+                        fig_comp.add_shape(type="line", x0=tss_p, x1=tss_p,
+                                           y0=-1.3, y1=1.3,
+                                           line=dict(color=C_NAVY, width=2), row=row, col=1)
+                        fig_comp.add_annotation(x=tss_p, y=-1.35, text="<b>TSS</b>",
+                                                showarrow=False,
+                                                font=dict(size=9, color=C_NAVY), row=row, col=1)
+                    fig_comp.add_shape(type="line", x0=tss1, x1=length*0.95,
+                                       y0=0.6, y1=0.6,
+                                       line=dict(color=C_BLUE, width=6), row=row, col=1)
+                    fig_comp.add_annotation(x=(tss1+length*0.95)/2, y=0.85,
                                             text=f"<b><i>{cand['gene1']}</i></b> →",
-                                            showarrow=False, font=dict(size=12, color="#2E86C1"),
+                                            showarrow=False, font=dict(size=12, color=C_BLUE),
                                             row=row, col=1)
-                    fig_comp.add_shape(type="line", x0=length * 0.05, x1=tss2, y0=-0.6, y1=-0.6,
-                                       line=dict(color="#E67E22", width=6), row=row, col=1)
-                    fig_comp.add_annotation(x=(length * 0.05 + tss2) / 2, y=-0.85,
+                    fig_comp.add_shape(type="line", x0=length*0.05, x1=tss2,
+                                       y0=-0.6, y1=-0.6,
+                                       line=dict(color=C_AMBER, width=6), row=row, col=1)
+                    fig_comp.add_annotation(x=(length*0.05+tss2)/2, y=-0.85,
                                             text=f"← <b><i>{cand['gene2']}</i></b>",
-                                            showarrow=False, font=dict(size=12, color="#E67E22"),
+                                            showarrow=False, font=dict(size=12, color=C_AMBER),
                                             row=row, col=1)
-                    # ETS motifs
                     for i, (s, e, strand, motif_seq) in enumerate(ets_all):
-                        in_nfr = any(nfr_s <= s <= nfr_e for nfr_s, nfr_e in nfr_regions)
-                        y_pos = 0.15 if strand == "+" else -0.15
-                        color = "#1565C0" if in_nfr else ("#C62828" if strand == "+" else "#6A1B9A")
-                        symbol = "triangle-up" if strand == "+" else "triangle-down"
+                        in_nfr = any(ns <= s <= ne for ns, ne in nfr_regions)
+                        y_pos  = 0.15 if strand == "+" else -0.15
+                        color  = C_NAVY if in_nfr else (C_RED if strand == "+" else C_PURPLE)
+                        sym    = "triangle-up" if strand == "+" else "triangle-down"
                         fig_comp.add_trace(go.Scatter(
                             x=[s], y=[y_pos], mode="markers",
-                            marker=dict(size=10, color=color, symbol=symbol,
+                            marker=dict(size=10, color=color, symbol=sym,
                                         line=dict(width=1, color="white")),
-                            hovertext=f"ETS #{i+1} ({strand})<br>{motif_seq}<br>pos {s}<br>{'IN NFR' if in_nfr else 'outside NFR'}",
-                            hoverinfo="text", showlegend=False), row=row, col=1)
-                        fig_comp.add_annotation(x=s, y=y_pos + (0.25 if strand == "+" else -0.25),
-                                                text=f"<b>#{i+1}</b>", showarrow=False,
-                                                font=dict(size=8, color=color), row=row, col=1)
+                            hovertext=f"ETS #{i+1} ({strand})<br>{motif_seq}<br>"
+                                      f"pos {s}<br>{'IN NFR' if in_nfr else 'outside NFR'}",
+                            hoverinfo="text", showlegend=False),
+                            row=row, col=1)
+                        fig_comp.add_annotation(
+                            x=s, y=y_pos + (0.25 if strand == "+" else -0.25),
+                            text=f"<b>#{i+1}</b>", showarrow=False,
+                            font=dict(size=8, color=color), row=row, col=1)
                     fig_comp.update_yaxes(range=[-1.4, 1.4], visible=False, row=row, col=1)
 
-            # X axis label on last row
             fig_comp.update_xaxes(title_text=f"Position in {cand['label']} (bp)",
                                   row=n_rows, col=1)
             fig_comp.update_layout(
-                height=250 * n_rows, showlegend=False,
-                margin=dict(l=60, r=30, t=30, b=40),
+                height=260 * n_rows, showlegend=False,
+                margin=dict(l=60, r=40, t=30, b=40),
+                font=dict(family="Inter, sans-serif", size=12),
+                paper_bgcolor="white", plot_bgcolor="white",
             )
             st.plotly_chart(fig_comp, use_container_width=True)
 
-        # ETS summary table with NFR info
         if ets_all:
             n_in_nfr = sum(1 for s, e, _, _ in ets_all
-                           if any(nfr_s <= s <= nfr_e for nfr_s, nfr_e in nfr_regions))
+                           if any(ns <= s <= ne for ns, ne in nfr_regions))
             st.markdown(
-                f"**{len(ets_all)} ETS motifs** — density: {len(ets_all)/length*1000:.1f} motifs/kb "
-                f"— **{n_in_nfr} in NFR** (within 200 bp of TSS)"
+                f"**{len(ets_all)} ETS motifs** — "
+                f"{len(ets_all)/length*1000:.1f} motifs/kb — "
+                f"**{n_in_nfr} within NFR** (±200 bp of TSS)"
             )
             ets_df = pd.DataFrame([
-                {"#": i+1, "Position": s, "Strand": strand, "Motif": motif_seq,
-                 "In NFR": "Yes" if any(nfr_s <= s <= nfr_e for nfr_s, nfr_e in nfr_regions) else "No",
-                 "Genomic Coord.": f"{cand['chrom']}:{cand['start']+s:,}"}
-                for i, (s, e, strand, motif_seq) in enumerate(ets_all)
+                {"#": i+1, "Position": s, "Strand": strand, "Motif": ms,
+                 "In NFR": "Yes" if any(ns <= s <= ne for ns, ne in nfr_regions) else "No",
+                 "Genomic coord.": f"{cand['chrom']}:{cand['start']+s:,}"}
+                for i, (s, e, strand, ms) in enumerate(ets_all)
             ])
             st.dataframe(ets_df, use_container_width=True, hide_index=True)
         else:
-            st.info("No ETS motifs (CGGAA[GA]) found in this candidate.")
+            st.info("No ETS motifs (CGGAA[GA]) detected in this candidate sequence.")
     else:
         st.warning("Sequence not available for this candidate.")
 
-    # UCSC link
     st.markdown("---")
-    ucsc_url = (
-        f"https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&"
-        f"position={cand['chrom']}%3A{cand['start']}-{cand['end']}"
-    )
-    st.markdown(f"[View in UCSC Genome Browser]({ucsc_url})")
+    ucsc_url = (f"https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&"
+                f"position={cand['chrom']}%3A{cand['start']}-{cand['end']}")
+    st.markdown(f"[View in UCSC Genome Browser ↗]({ucsc_url})")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 # PAGE: PCA EXPLORER
 # ══════════════════════════════════════════════════════════════════════════════
 elif page == "PCA Explorer":
-    st.title("PCA Explorer — Epigenomic Space")
-
     from sklearn.decomposition import PCA
     from sklearn.preprocessing import StandardScaler
 
-    # Prepare data
-    X = scored[FEATURES].copy()
-    for col in FEATURES:
-        if X[col].isna().any():
-            X[col] = X[col].fillna(X[col].median())
-
-    scaler = StandardScaler()
-    Z = scaler.fit_transform(X)
-    pca = PCA(n_components=2)
-    Z_pca = pca.fit_transform(Z)
-
-    scored_pca = scored.copy()
-    scored_pca["PC1"] = Z_pca[:, 0]
-    scored_pca["PC2"] = Z_pca[:, 1]
-
-    # Color by
-    color_by = st.selectbox(
-        "Color by",
-        ["composite_score", "mahalanobis_dist", "composite_rank",
-         "H3K4me3_mean", "meth_mean", "length"],
-        index=0,
+    st.title("PCA Explorer — Epigenomic Feature Space")
+    st.markdown(
+        "<p style='color:#546E7A'>Principal component analysis of the 21-variable epigenomic "
+        "feature space. Each point is one of the 599 candidates.</p>",
+        unsafe_allow_html=True,
     )
 
+    X = scored_full[FEATURES].copy()
+    for col in FEATURES:
+        if col in X.columns and X[col].isna().any():
+            X[col] = X[col].fillna(X[col].median())
+
+    valid_feat = [f for f in FEATURES if f in X.columns]
+    Z     = StandardScaler().fit_transform(X[valid_feat])
+    pca   = PCA(n_components=2)
+    Z_pca = pca.fit_transform(Z)
+
+    pca_df = scored_full.copy()
+    pca_df["PC1"] = Z_pca[:, 0]
+    pca_df["PC2"] = Z_pca[:, 1]
+    pca_df["stability_pct"] = pca_df["label"].map(
+        sens.set_index("label")["stability_pct"]).fillna(0)
+
+    col_opt, col_pca = st.columns([1, 3])
+    with col_opt:
+        color_by = st.selectbox("Colour by", [
+            "composite_score", "composite_rank", "stability_pct",
+            "H3K4me3_mean", "meth_mean", "length",
+        ])
+        show_known  = st.checkbox("Highlight known UCOEs", value=True)
+        show_stable = st.checkbox("Highlight 100% stable", value=True)
+
+    scale = "Viridis_r" if color_by in ("composite_rank",) else "Viridis"
+
     fig_pca = px.scatter(
-        scored_pca, x="PC1", y="PC2",
-        color=color_by,
+        pca_df, x="PC1", y="PC2", color=color_by,
         hover_data=["label", "composite_rank", "composite_score", "chrom"],
-        color_continuous_scale="Viridis_r" if "dist" in color_by or "rank" in color_by else "Viridis",
+        color_continuous_scale=scale,
+        opacity=0.65,
         labels={
             "PC1": f"PC1 ({pca.explained_variance_ratio_[0]*100:.1f}%)",
             "PC2": f"PC2 ({pca.explained_variance_ratio_[1]*100:.1f}%)",
         },
-        title="599 UCOE Candidates in PCA Space",
+        title=f"599 UCOE Candidates — coloured by {color_by}",
     )
 
-    # Highlight known UCOEs
-    known_mask = scored_pca["known_ucoe"].notna()
-    if known_mask.any():
-        known_df = scored_pca[known_mask]
+    if show_stable:
+        stable_pca = pca_df[pca_df["stability_pct"] == 100]
         fig_pca.add_trace(go.Scatter(
-            x=known_df["PC1"], y=known_df["PC2"],
-            mode="markers+text",
-            marker=dict(size=15, symbol="star", color="red", line=dict(width=2, color="black")),
-            text=known_df["known_ucoe"],
-            textposition="top center",
-            name="Known UCOEs",
-            showlegend=True,
+            x=stable_pca["PC1"], y=stable_pca["PC2"],
+            mode="markers", name="100% stable",
+            marker=dict(size=13, symbol="star", color=C_AMBER,
+                        line=dict(width=1.5, color="white")),
+            hovertext=stable_pca["label"], hoverinfo="text+name",
         ))
 
-    # Highlight top candidate
-    top1 = scored_pca[scored_pca["composite_rank"] == 1].iloc[0]
-    fig_pca.add_trace(go.Scatter(
-        x=[top1["PC1"]], y=[top1["PC2"]],
-        mode="markers+text",
-        marker=dict(size=12, symbol="diamond", color="#FF9800",
-                    line=dict(width=2, color="black")),
-        text=[top1["label"]],
-        textposition="bottom center",
-        name="Rank #1",
-        showlegend=True,
-    ))
+    if show_known:
+        known_pca = pca_df[pca_df["known_ucoe"].notna()]
+        fig_pca.add_trace(go.Scatter(
+            x=known_pca["PC1"], y=known_pca["PC2"],
+            mode="markers+text",
+            marker=dict(size=16, symbol="star-diamond", color=C_RED,
+                        line=dict(width=2, color="white")),
+            text=known_pca["known_ucoe"], textposition="top center",
+            textfont=dict(size=11, color=C_RED, family="Inter"),
+            name="Known UCOEs",
+        ))
 
-    fig_pca.update_layout(height=600)
-    st.plotly_chart(fig_pca, use_container_width=True)
+    apply_template(fig_pca, height=580)
+    with col_pca:
+        st.plotly_chart(fig_pca, use_container_width=True)
+        st.caption(
+            f"PC1 {pca.explained_variance_ratio_[0]*100:.1f}% + "
+            f"PC2 {pca.explained_variance_ratio_[1]*100:.1f}% = "
+            f"{sum(pca.explained_variance_ratio_)*100:.1f}% of variance explained. "
+            f"⭐ = 100% weight-stable candidates. ✦ = known UCOEs."
+        )
 
-    # Variance explained
-    st.caption(
-        f"PC1 explains {pca.explained_variance_ratio_[0]*100:.1f}% and "
-        f"PC2 explains {pca.explained_variance_ratio_[1]*100:.1f}% of variance "
-        f"({(pca.explained_variance_ratio_[0]+pca.explained_variance_ratio_[1])*100:.1f}% total)."
+
+# ══════════════════════════════════════════════════════════════════════════════
+# PAGE: VALIDATION & ROBUSTNESS
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "Validation & Robustness":
+    st.title("Validation & Robustness")
+    st.markdown(
+        "<p style='color:#546E7A;font-size:1.05rem'>"
+        "Two independent analyses assess whether the composite score is "
+        "reliable and stable across methodological choices.</p>",
+        unsafe_allow_html=True,
     )
+
+    tab_loo, tab_sens = st.tabs(["Leave-One-Out Cross-Validation", "Weight Sensitivity Analysis"])
+
+    # ── TAB 1: LOO ──
+    with tab_loo:
+        st.markdown("""
+        ### Leave-One-Out Cross-Validation
+
+        Each of the 3 known UCOEs is held out in turn. The pipeline is re-run
+        using only the remaining 2 as reference, and the held-out UCOE is ranked
+        against the 599 candidates.
+        """)
+
+        st.info("""
+        **Interpreting LOO results with n = 3 references.** When the reference set
+        contains only 3 elements, holding out one shifts the centroid substantially —
+        the remaining pair may not adequately represent the full UCOE epigenomic
+        space. Low LOO ranks therefore reflect small-sample instability of the
+        reference centroid, not a failure of the scoring approach. This is a known
+        limitation of methods that require a reference class and is addressed
+        in the Methods section.
+        """)
+
+        # Full-model ranks for known UCOEs
+        full_ranks = {
+            row["label"]: (row["composite_rank"], row["composite_score"])
+            for _, row in scored.iterrows() if row["known_ucoe"]
+        }
+        ucoe_name_map = {
+            "A2UCOE_HNRNPA2B1_CBX3": "A2UCOE",
+            "TBP_PSMB1":              "TBP/PSMB1",
+            "SRF_UCOE_SURF1_SURF2":   "SRF-UCOE",
+        }
+        label_map = {
+            "A2UCOE":    "CBX3/HNRNPA2B1",
+            "TBP/PSMB1": "PSMB1/TBP",
+            "SRF-UCOE":  "SURF2/SURF1",
+        }
+
+        loo_rows = []
+        for _, row in loo_df.iterrows():
+            ucoe_name  = ucoe_name_map.get(row["excluded_ucoe"], row["excluded_ucoe"])
+            gene_label = label_map.get(ucoe_name, ucoe_name)
+            fm = full_ranks.get(gene_label, (None, None))
+            loo_rows.append({
+                "Known UCOE":          ucoe_name,
+                "Gene pair":           gene_label,
+                "Rank — full model":   int(fm[0]) if fm[0] else "—",
+                "Score — full model":  f"{fm[1]:.4f}" if fm[1] else "—",
+                "Rank — LOO":          int(row["rank"]),
+                "Score — LOO":         f"{row['score']:.4f}",
+                "Top 10 (LOO)":        "✓" if row["top_10"] else "✗",
+                "Top 50 (LOO)":        "✓" if row["top_50"] else "✗",
+            })
+        loo_display = pd.DataFrame(loo_rows)
+        st.dataframe(loo_display, use_container_width=True, hide_index=True)
+
+        # Paired bar chart: LOO rank vs full-model rank
+        fig_loo = go.Figure()
+        ucoe_names  = [r["Known UCOE"] for r in loo_rows]
+        full_ranks_v = [r["Rank — full model"] for r in loo_rows]
+        loo_ranks_v  = [r["Rank — LOO"]        for r in loo_rows]
+
+        fig_loo.add_trace(go.Bar(
+            name="Full model", x=ucoe_names, y=full_ranks_v,
+            marker_color=C_BLUE, opacity=0.85,
+            text=[f"#{v}" for v in full_ranks_v], textposition="outside",
+        ))
+        fig_loo.add_trace(go.Bar(
+            name="LOO", x=ucoe_names, y=loo_ranks_v,
+            marker_color=C_AMBER, opacity=0.75,
+            text=[f"#{v}" for v in loo_ranks_v], textposition="outside",
+        ))
+        apply_template(fig_loo, height=380)
+        fig_loo.update_layout(
+            barmode="group",
+            title="Known UCOE rank: full model vs leave-one-out",
+            yaxis_title="Rank (lower = better)",
+            yaxis=dict(autorange="reversed"),
+        )
+        fig_loo.add_hline(y=20,  line_dash="dot", line_color=C_GREEN,
+                          annotation_text="Top 20",  annotation_position="right",
+                          annotation_font=dict(size=10, color=C_GREEN))
+        fig_loo.add_hline(y=599, line_dash="dot", line_color=C_GRAY,
+                          opacity=0.3)
+        st.plotly_chart(fig_loo, use_container_width=True)
+
+        st.markdown(f"""
+        **Interpretation.** In the full model (all 3 reference UCOEs), the known
+        UCOEs rank at positions **27, 121 and 188** out of 599 — placing all three
+        in the **top 32%** of candidates. The LOO experiment reveals that each known
+        UCOE has a sufficiently distinctive profile that it is not well-approximated
+        by the centroid of the remaining pair, which is expected given n = 3.
+        Expansion of the validated UCOE reference set will be critical for improving
+        LOO performance in future iterations.
+        """)
+
+    # ── TAB 2: SENSITIVITY ──
+    with tab_sens:
+        st.markdown("""
+        ### Weight Sensitivity Analysis
+
+        The composite score weights (w_Mahal, w_Cosine, w_Pct) were varied
+        systematically over **29 combinations** spanning the weight simplex
+        (w_M + w_C + w_P = 1, each ≥ 0.05, step 0.1). A candidate is classified
+        as **stable** if it appears in the top 20 across all combinations.
+        """)
+
+        n_stable = int((sens["stability_pct"] == 100).sum())
+        s1, s2, s3 = st.columns(3)
+        s1.metric("Weight combinations tested", "29")
+        s2.metric("Candidates with 100% stability", str(n_stable))
+        s3.metric("Candidates with > 80% stability",
+                  str(int((sens["stability_pct"] >= 80).sum())))
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # Bubble chart
+        fig_sens = go.Figure()
+
+        # All candidates with stability data
+        non_stable = sens[sens["stability_pct"] < 100].dropna(subset=["composite_rank"])
+        stable_100 = sens[sens["stability_pct"] == 100].dropna(subset=["composite_rank"])
+
+        if len(non_stable):
+            fig_sens.add_trace(go.Scatter(
+                x=non_stable["composite_rank"],
+                y=non_stable["stability_pct"],
+                mode="markers",
+                marker=dict(
+                    size=non_stable["composite_score"] * 18,
+                    color=non_stable["stability_pct"],
+                    colorscale=[[0, "#E3E8F0"], [0.5, C_TEAL], [1.0, C_BLUE]],
+                    cmin=0, cmax=100,
+                    opacity=0.7,
+                    line=dict(width=0.5, color="white"),
+                ),
+                hovertemplate=(
+                    "<b>%{customdata[0]}</b><br>"
+                    "Rank: %{x}<br>Stability: %{y:.1f}%<extra></extra>"
+                ),
+                customdata=non_stable[["label"]],
+                name="Candidates",
+                showlegend=False,
+            ))
+
+        if len(stable_100):
+            fig_sens.add_trace(go.Scatter(
+                x=stable_100["composite_rank"],
+                y=stable_100["stability_pct"],
+                mode="markers+text",
+                marker=dict(
+                    size=stable_100["composite_score"] * 22,
+                    color=C_AMBER,
+                    symbol="star",
+                    line=dict(width=1.5, color="white"),
+                ),
+                text=stable_100["label"],
+                textposition="top center",
+                textfont=dict(size=9, color=C_NAVY, family="Inter"),
+                hovertemplate=(
+                    "<b>%{text}</b><br>"
+                    "Rank: %{x}<br>Stability: 100%<extra></extra>"
+                ),
+                name="100% stable ⭐",
+            ))
+
+        apply_template(fig_sens, height=480)
+        fig_sens.update_layout(
+            title="Rank stability across 29 weight combinations",
+            xaxis_title="Composite rank (full model)",
+            yaxis_title="Stability (% of combinations in top 20)",
+            yaxis=dict(range=[-5, 108]),
+        )
+        fig_sens.add_hline(y=80, line_dash="dot", line_color=C_TEAL, opacity=0.6,
+                           annotation_text=">80% stable",
+                           annotation_position="right",
+                           annotation_font=dict(size=10, color=C_TEAL))
+        st.plotly_chart(fig_sens, use_container_width=True)
+
+        # Top stable table
+        st.subheader("Top 15 candidates by stability")
+        top15 = (sens.dropna(subset=["composite_rank"])
+                     .sort_values(["stability_pct", "composite_rank"],
+                                  ascending=[False, True])
+                     .head(15))
+        top15_disp = top15[["label", "chrom", "composite_rank",
+                             "composite_score", "stability_pct"]].copy()
+        top15_disp.columns = ["Gene pair", "Chrom", "Rank", "Score", "Stability (%)"]
+        top15_disp["Stability (%)"] = top15_disp["Stability (%)"].round(1)
+        top15_disp["Score"] = top15_disp["Score"].round(4)
+        st.dataframe(top15_disp, use_container_width=True, hide_index=True)
+
+        st.markdown(f"""
+        **Interpretation.** Seven candidates maintain a top-20 position
+        across **all 29 weight combinations**, demonstrating that their high ranking
+        is not an artefact of a specific weighting scheme. SMIM27/TOPORS (rank 1)
+        is among them, supporting its designation as the top UCOE candidate
+        regardless of how the three metrics are balanced.
+        """)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -911,321 +1520,219 @@ elif page == "PCA Explorer":
 # ══════════════════════════════════════════════════════════════════════════════
 elif page == "Methods & Glossary":
     st.title("Methods & Glossary")
+    st.markdown(
+        "<p style='color:#546E7A'>Technical description of the pipeline, scoring metrics, "
+        "and epigenomic features used in candidate identification and ranking.</p>",
+        unsafe_allow_html=True,
+    )
 
     tab_epi, tab_metrics, tab_math, tab_filters = st.tabs([
         "Epigenomic Marks", "Ranking Metrics", "Mathematical Formulas", "Filter Criteria",
     ])
 
-    # ── TAB: Epigenomic Marks ──
     with tab_epi:
         st.subheader("Histone Modifications")
-
         st.markdown("""
-        Histone modifications are chemical changes to histone proteins around which DNA is wrapped.
-        They regulate chromatin accessibility and gene expression. The pipeline uses **6 histone marks**
-        measured by ChIP-seq across 11 cell lines from the ENCODE/Roadmap Epigenomics consortium.
+        Histone modifications are covalent marks on histone proteins that regulate
+        chromatin accessibility and transcription. The pipeline quantifies **6 marks**
+        by ChIP-seq fold-change over input across 11 cell lines
+        (ENCODE / Roadmap Epigenomics consortium).
         """)
-
-        marks_data = {
-            "Mark": [
-                "**H3K4me3**", "**H3K27ac**", "**H3K9ac**",
-                "**H3K36me3**", "**H3K27me3**", "**H3K9me3**",
-            ],
-            "Type": [
-                "Active", "Active", "Active",
-                "Active (transcription)", "Repressive", "Repressive",
-            ],
-            "Meaning": [
-                "Trimethylation of histone H3 at lysine 4. Found at active promoters. Deposited by SET1/COMPASS complex. Mutually exclusive with DNA methylation.",
-                "Acetylation of H3 at lysine 27. Marks active promoters and enhancers. Distinguishes active from poised enhancers. Deposited by p300/CBP.",
-                "Acetylation of H3 at lysine 9. Marks active promoters. Associated with transcriptional initiation.",
-                "Trimethylation of H3 at lysine 36. Found across gene bodies of actively transcribed genes. Deposited by SETD2 during elongation.",
-                "Trimethylation of H3 at lysine 27. Polycomb-mediated repression. Marks silenced developmental genes. Deposited by PRC2 (EZH2).",
-                "Trimethylation of H3 at lysine 9. Constitutive heterochromatin. Marks pericentromeric regions and silenced transgenes. Deposited by SUV39H1/SETDB1.",
-            ],
+        marks_data = pd.DataFrame({
+            "Mark":       ["H3K4me3", "H3K27ac", "H3K9ac", "H3K36me3", "H3K27me3", "H3K9me3"],
+            "Type":       ["Active", "Active", "Active", "Active (elongation)", "Repressive", "Repressive"],
+            "Deposited by": ["SET1/COMPASS", "p300/CBP", "GCN5/PCAF", "SETD2", "PRC2 (EZH2)", "SUV39H1/SETDB1"],
             "UCOE expectation": [
-                "High in all cell types (ubiquitous)",
-                "High in all cell types (ubiquitous)",
-                "High in all cell types",
+                "High, ubiquitous across cell types",
+                "High, ubiquitous across cell types",
+                "High, ubiquitous across cell types",
                 "Moderate (housekeeping transcription)",
-                "Absent — presence indicates silencing",
-                "Absent — presence indicates heterochromatin",
+                "Absent — indicates Polycomb silencing",
+                "Absent — indicates constitutive heterochromatin",
             ],
-        }
-        st.table(pd.DataFrame(marks_data))
+        })
+        st.dataframe(marks_data, use_container_width=True, hide_index=True)
 
         st.markdown("---")
         st.subheader("DNA Methylation (WGBS)")
         st.markdown("""
-        **DNA methylation** is the addition of a methyl group to cytosine in CpG dinucleotides.
-        Measured by **Whole-Genome Bisulfite Sequencing (WGBS)** at single-base resolution.
+        Whole-Genome Bisulfite Sequencing (WGBS) measures 5-methylcytosine at CpG
+        dinucleotides at single-base resolution.
 
-        - **Hypomethylation** (< 10%) at CpG islands indicates active, open chromatin
-        - **Hypermethylation** (> 50%) indicates gene silencing
-        - UCOEs must be **constitutively hypomethylated** across all cell types
-        - The pipeline requires methylation < 10% in ≥ 80% of cell lines with WGBS data (8 of 11)
+        - **Hypomethylation** (< 10%) at CpG islands indicates constitutively active, open chromatin
+        - UCOEs must remain hypomethylated across all cell types — this is the defining epigenomic property
+        - The pipeline applies a strict filter: mean CpG methylation < 10% in ≥ 80% of cell lines with WGBS data
 
-        **Why it matters for UCOEs**: Unmethylated CpGs recruit CXXC1/CFP1, which deposits H3K4me3
-        via the SET1/COMPASS complex, creating a positive feedback loop that maintains open chromatin
-        (Thomson et al., 2010).
+        Unmethylated CpG islands recruit the CXXC domain of CXXC1/CFP1, which in turn
+        recruits the SET1/COMPASS complex to deposit H3K4me3, creating a positive
+        feedback loop that sustains constitutive chromatin opening.
         """)
 
         st.markdown("---")
         st.subheader("DNase-seq (Chromatin Accessibility)")
         st.markdown("""
-        **DNase-seq** maps regions of open chromatin by identifying sites hypersensitive to
-        DNase I digestion. Open chromatin is accessible to transcription factors.
+        DNase-seq identifies nucleosome-depleted regions by their hypersensitivity to
+        DNase I digestion.
 
-        - **Used as informative annotation**, not as an eliminatory filter
-        - UCOEs show moderate, constitutive accessibility (not hyper-accessible)
-        - High fold-change is biased against GC-rich regions (CpG islands) due to input normalization artifacts
-        - In the pipeline: DNase mean and CV are included as Phase II ranking features
-
-        **Why informative but not a filter**: Known UCOEs have DNase fold-change < 2.0 due to
-        GC-content bias in the input control, which would cause false negatives if used as a binary filter.
+        - Used as a **ranking feature** in Phase II, not as a binary filter in Phase I
+        - Known UCOEs show moderate, constitutive DNase signal (fold-change < 2.0)
+        - High fold-change DNase signal is biased against GC-rich sequences due to GC bias
+          in the input control, which would generate false negatives if used as a filter
         """)
 
         st.markdown("---")
         st.subheader("Repli-seq (Replication Timing)")
         st.markdown("""
-        **Repli-seq** measures when a genomic region is replicated during S-phase.
+        Repli-seq measures the ratio of Early-to-Late S-phase replication signal (E/L ratio).
 
-        - **Early-replicating** regions (high E/L ratio) correspond to open, active chromatin
-        - **Late-replicating** regions correspond to heterochromatin
-        - UCOEs are expected to replicate early, consistent with constitutively open chromatin
-        - Measured as the ratio of Early to Late S-phase signal (E/L)
+        - **High E/L** → early replication → open, transcriptionally active chromatin
+        - UCOEs are expected to replicate constitutively early, consistent with open chromatin
         """)
 
         st.markdown("---")
         st.subheader("CTCF Binding")
         st.markdown("""
-        **CTCF** (CCCTC-binding factor) is an insulator protein that defines chromatin domain boundaries.
+        CTCF (CCCTC-binding factor) defines topological chromatin domain boundaries and
+        can provide insulator activity that shields adjacent regions from heterochromatin spreading.
 
-        - CTCF peaks flanking a UCOE may provide **insulator activity**, protecting against
-          heterochromatin spreading from adjacent regions
-        - Measured as the number of CTCF ChIP-seq peaks within ±2 kb of the candidate region
-        - The ±2 kb window captures the insulator context without being limited to the candidate itself
+        - Quantified as the number of CTCF ChIP-seq peaks within ±2 kb of the candidate region
+        - CTCF peaks flanking a UCOE may enhance transgene insulation at integrated loci
         """)
 
-    # ── TAB: Ranking Metrics ──
     with tab_metrics:
-        st.subheader("Phase II Ranking Metrics")
-
+        st.subheader("Phase II — Multivariate Ranking")
         st.markdown("""
-        Each candidate that passes Phase I filtering is described by a **21-feature vector**
-        and ranked by similarity to the 3 known UCOEs using three complementary metrics.
+        Each of the 599 Phase I candidates is described by a **21-dimensional feature vector**
+        and ranked by three complementary similarity metrics relative to the 3 known UCOEs.
         """)
 
-        st.markdown("#### Feature Vector (21 variables)")
         feat_df = pd.DataFrame({
-            "Feature": [
-                "H3K4me3 mean & CV", "H3K27ac mean & CV", "H3K9ac mean & CV",
-                "H3K36me3 mean & CV", "H3K27me3 mean & CV", "H3K9me3 mean & CV",
-                "Methylation mean & CV", "DNase mean & CV",
-                "Repli-seq mean", "CTCF peak count", "Inter-TSS distance",
-            ],
-            "# features": [2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1],
-            "Source": [
-                "ChIP-seq bigWig", "ChIP-seq bigWig", "ChIP-seq bigWig",
-                "ChIP-seq bigWig", "ChIP-seq bigWig", "ChIP-seq bigWig",
-                "WGBS", "DNase-seq bigWig",
-                "Repli-seq bigWig", "CTCF narrowPeak", "GENCODE v44",
-            ],
-            "Interpretation": [
-                "Mean = signal intensity; CV = consistency across cell lines (low CV = ubiquitous)",
-                "Mean = signal intensity; CV = consistency across cell lines",
-                "Mean = signal intensity; CV = consistency across cell lines",
-                "Mean = transcriptional elongation; CV = consistency",
-                "Mean = repression level (should be low); CV = consistency",
-                "Mean = heterochromatin (should be low); CV = consistency",
-                "Mean = methylation % (should be <10%); CV = consistency",
-                "Mean = accessibility; CV = consistency",
-                "Early/Late ratio (higher = earlier replication)",
-                "Insulator context (number of CTCF peaks in ±2 kb)",
-                "Distance between TSSs of the gene pair (bp)",
-            ],
+            "Feature group":   ["H3K4me3", "H3K27ac", "H3K9ac", "H3K36me3",
+                                 "H3K27me3", "H3K9me3", "Methylation", "DNase",
+                                 "Repli-seq", "CTCF", "CpG Obs/Exp", "GC %", "Inter-TSS"],
+            "Variables":       ["mean, CV"] * 8 + ["mean", "peak count",
+                                 "ratio", "%", "bp"],
+            "# features":      [2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1],
+            "Source":          ["ChIP-seq bigWig"] * 8 +
+                               ["Repli-seq bigWig", "CTCF narrowPeak",
+                                "UCSC CpG track", "UCSC CpG track", "GENCODE v44"],
         })
         st.dataframe(feat_df, use_container_width=True, hide_index=True)
+        st.markdown("**Total: 21 features** (8 marks × 2 + 5 scalar features)")
 
         st.markdown("---")
+        for title, weight, desc in [
+            ("1 · Mahalanobis Distance", "Weight: 0.4",
+             "Distance from each candidate to the centroid of the 3 reference UCOEs, "
+             "accounting for inter-feature correlations. Covariance estimated by "
+             "Ledoit-Wolf shrinkage over the 599 candidates; inverted via Moore-Penrose "
+             "pseudo-inverse. Lower distance → higher score."),
+            ("2 · Cosine Similarity", "Weight: 0.3",
+             "Cosine of the angle between the z-score normalised feature vector of the "
+             "candidate and the reference centroid. Captures profile shape independently "
+             "of signal magnitude. Range: −1 to +1."),
+            ("3 · Composite Percentile Rank", "Weight: 0.3",
+             "For each of the 21 features, each candidate is assigned a percentile rank "
+             "relative to all 599 candidates (direction adjusted per feature biology). "
+             "The 21 percentiles are averaged into a single score ∈ [0, 1]."),
+        ]:
+            st.markdown(f"""
+            <div style="background:{C_BGCARD};border:1px solid {C_BORDER};
+                        border-radius:10px;padding:18px 22px;margin-bottom:12px">
+            <div style="font-weight:700;color:{C_NAVY};margin-bottom:4px">{title}</div>
+            <div style="font-size:0.82rem;color:{C_TEAL};font-weight:600;
+                        margin-bottom:8px">{weight}</div>
+            <div style="color:#546E7A;font-size:0.9rem;line-height:1.6">{desc}</div>
+            </div>""", unsafe_allow_html=True)
 
-        st.markdown("#### 1. Mahalanobis Distance")
-        st.markdown("""
-        Measures the distance from each candidate to the **centroid** of the 3 reference UCOEs,
-        accounting for correlations between features.
-
-        - **Covariance estimation**: Ledoit-Wolf shrinkage estimator (scikit-learn), computed over
-          the 599 candidates (not the 3 references — too few for stable estimation)
-        - **Matrix inversion**: Moore-Penrose pseudo-inverse for numerical stability
-        - **Interpretation**: Lower distance = more similar to the UCOE reference profile
-        - **Weight in composite**: 0.4 (highest, because it captures multivariate structure)
-        """)
-
-        st.markdown("#### 2. Cosine Similarity")
-        st.markdown("""
-        Measures the **angle** between the feature vector of each candidate and the reference centroid
-        in z-score normalized space.
-
-        - **Normalization**: StandardScaler (z-score) applied to all features before computation
-        - **Range**: -1 to +1 (higher = more similar pattern)
-        - **Captures**: Pattern similarity regardless of magnitude — a candidate with half the
-          signal but the same relative profile scores high
-        - **Weight in composite**: 0.3
-        """)
-
-        st.markdown("#### 3. Composite Percentile Rank")
-        st.markdown("""
-        For each feature individually, each candidate receives a **percentile rank** (0-100%)
-        relative to all other candidates.
-
-        - **Direction**: Biologically informed — "higher is better" for active marks;
-          "lower is better" for repressive marks and CVs
-        - **Final score**: Average of all 21 individual percentiles
-        - **Captures**: Candidates consistently good across many dimensions
-        - **Weight in composite**: 0.3
-        """)
-
-        st.markdown("#### Composite Score")
-        st.markdown("""
-        The final UCOE score combines all three metrics:
-
-        **S = 0.4 × Mahalanobis_norm + 0.3 × Cosine_norm + 0.3 × Percentile_norm**
-
-        Each metric is min-max normalized to [0, 1] before combination.
-        Mahalanobis is inverted (lower distance → higher score).
-        """)
-
-    # ── TAB: Mathematical Formulas ──
     with tab_math:
         st.subheader("Mathematical Formulas")
 
         st.markdown("#### Mahalanobis Distance")
-        st.latex(r"D_M(\mathbf{x}) = \sqrt{(\mathbf{x} - \boldsymbol{\mu}_{ref})^T \, \Sigma^{-1} \, (\mathbf{x} - \boldsymbol{\mu}_{ref})}")
+        st.latex(r"D_M(\mathbf{x}) = \sqrt{(\mathbf{x} - \boldsymbol{\mu}_{ref})^\top \hat{\Sigma}^{+} (\mathbf{x} - \boldsymbol{\mu}_{ref})}")
         st.markdown("""
-        Where:
-        - **x** ∈ ℝ²¹ is the feature vector of a candidate
-        - **μ_ref** = (1/3) Σᵢ xᵢ is the centroid of the 3 reference UCOEs
-        - **Σ** is the covariance matrix estimated by Ledoit-Wolf shrinkage over 599 candidates
-        - **Σ⁻¹** is the Moore-Penrose pseudo-inverse of Σ
+        - **x** ∈ ℝ²¹ — feature vector of a candidate
+        - **μ_ref** = ⅓ Σᵢ xᵢ — centroid of the 3 reference UCOEs
+        - **Σ̂** — Ledoit-Wolf shrinkage covariance estimated over 599 candidates
+        - **Σ̂⁺** — Moore-Penrose pseudo-inverse for numerical stability
         """)
 
         st.markdown("---")
-
         st.markdown("#### Cosine Similarity")
-        st.latex(r"\text{cos\_sim}(\mathbf{x}, \boldsymbol{\mu}_{ref}) = \frac{\mathbf{z}_x \cdot \mathbf{z}_{\mu}}{||\mathbf{z}_x|| \cdot ||\mathbf{z}_{\mu}||}")
-        st.markdown("""
-        Where:
-        - **z_x** and **z_μ** are the z-score normalized versions of x and μ_ref
-        - Z-score: z = (x - mean) / std, computed over all candidates + references
-        """)
+        st.latex(r"\text{cos}(\mathbf{x},\boldsymbol{\mu}_{ref}) = \frac{\mathbf{z}_x \cdot \mathbf{z}_\mu}{\|\mathbf{z}_x\|\,\|\mathbf{z}_\mu\|}")
+        st.markdown("z-score normalisation applied over all candidates + references jointly.")
 
         st.markdown("---")
-
-        st.markdown("#### Composite Percentile Rank")
-        st.latex(r"P(\mathbf{x}) = \frac{1}{21} \sum_{j=1}^{21} p_j(\mathbf{x})")
-        st.markdown("""
-        Where:
-        - **p_j(x)** ∈ [0, 1] is the normalized percentile of candidate x in feature j
-        - Direction of ranking depends on feature type (ascending for active marks, descending for repressive)
-        """)
+        st.markdown("#### Composite Percentile Score")
+        st.latex(r"P(\mathbf{x}) = \frac{1}{21}\sum_{j=1}^{21} p_j(\mathbf{x}), \quad p_j \in [0,1]")
 
         st.markdown("---")
-
         st.markdown("#### Composite UCOE Score")
-        st.latex(r"S_{UCOE}(\mathbf{x}) = 0.4 \cdot \tilde{D}_M(\mathbf{x}) + 0.3 \cdot \widetilde{\text{cos}}(\mathbf{x}) + 0.3 \cdot \tilde{P}(\mathbf{x})")
-        st.markdown("""
-        Where tilde (~) indicates min-max normalization to [0, 1].
-        Mahalanobis is inverted: lower distance → higher score.
-        """)
+        st.latex(r"S(\mathbf{x}) = 0.4\,\tilde{D}_M(\mathbf{x}) + 0.3\,\widetilde{\cos}(\mathbf{x}) + 0.3\,\tilde{P}(\mathbf{x})")
+        st.markdown("Tilde (~) denotes min-max normalisation to [0, 1]; D_M is inverted.")
 
         st.markdown("---")
-
         st.markdown("#### Ledoit-Wolf Shrinkage Estimator")
-        st.latex(r"\hat{\Sigma}_{LW} = (1 - \alpha) \hat{\Sigma}_{sample} + \alpha \cdot \frac{\text{tr}(\hat{\Sigma}_{sample})}{p} \cdot I_p")
+        st.latex(r"\hat{\Sigma}_{LW} = (1-\alpha)\,\hat{\Sigma}_{sample} + \alpha\,\frac{\mathrm{tr}(\hat{\Sigma}_{sample})}{p}\,I_p")
         st.markdown("""
-        Where:
-        - **α** ∈ [0, 1] is the optimal shrinkage intensity (estimated analytically)
-        - **Σ̂_sample** is the sample covariance matrix (599 × 21)
-        - **p** = 21 (number of features)
-        - **I_p** is the identity matrix
-
-        This estimator is necessary because with only n=3 reference UCOEs, the classical
-        covariance matrix would be singular. The shrinkage pulls the estimate toward a
-        well-conditioned target (scaled identity), producing a positive-definite matrix.
+        - α ∈ [0, 1] — optimal shrinkage intensity estimated analytically
+        - p = 21 — number of features
+        - Required because n = 3 reference UCOEs yields a singular sample covariance
         """)
 
         st.markdown("---")
-
         st.markdown("#### Sensitivity Analysis")
-        st.markdown("""
-        The composite score weights (w_M, w_C, w_P) were varied systematically:
-        - Grid search over the simplex: w_M + w_C + w_P = 1.0, each w ≥ 0.05
-        - Step size: 0.1 → **29 weight combinations**
-        - A candidate is "stable" if it appears in the top 20 in >80% of combinations
-        - **7 candidates** achieved 100% stability
-        """)
+        st.latex(r"\{(w_M, w_C, w_P) : w_M + w_C + w_P = 1,\; w_i \geq 0.05,\; w_i \in \{0.05, 0.15, \ldots\}\}")
+        st.markdown("29 combinations; a candidate is *stable* if it appears in top 20 in ≥ 80% of combinations.")
 
-    # ── TAB: Filter Criteria ──
     with tab_filters:
-        st.subheader("Phase I Filter Criteria — Detailed")
+        st.subheader("Phase I Filter Criteria")
 
-        st.markdown("#### Filter 1: Bidirectional HKG Promoters")
-        st.markdown("""
-        - **Source**: GENCODE v44 (protein-coding genes) + Human Protein Atlas (housekeeping classification)
-        - **Criterion**: Pairs of housekeeping genes on opposite strands with TSS distance ≤ 5,000 bp
-        - **Two patterns detected**:
-          - Divergent classic: gene(−) ←← [intergenic] →→ gene(+)
-          - Divergent overlapping: gene(+) →→ [shared promoter] ←← gene(−)
-        - **Rationale**: All 3 known UCOEs reside at bidirectional HKG promoters
-        - **Output**: 789 candidate regions
-        """)
+        for title, content in [
+            ("Filter 1 — Bidirectional HKG Promoters (789 candidates)", """
+- **Source**: GENCODE v44 protein-coding genes + Human Protein Atlas housekeeping classification
+- **Criterion**: Pairs of housekeeping genes on opposite strands with TSS–TSS distance ≤ 5,000 bp
+- **Patterns**: divergent classic (←→) and divergent overlapping (shared promoter)
+- **Rationale**: All 3 validated UCOEs reside at bidirectional HKG promoters
+            """),
+            ("Filter 2 — CpG Island Overlap ≥ 40% (692 retained, 97 eliminated)", """
+- **Source**: UCSC cpgIslandExt track
+- **Pre-processing**: Candidate coordinates extended ±500 bp before intersection
+- **Threshold**: 40% (not 50%) because TBP/PSMB1 has 46% coverage from two discontinuous CpG islands
+            """),
+            ("Filter 3 — Ubiquitous Active Marks (647 retained, 45 eliminated)", """
+- **Marks**: H3K4me3 AND H3K27ac (both independently required)
+- **Criterion**: Fold-change over input > 2.0 in ≥ 80% of available cell lines
+- **Rationale**: UCOE activity must be constitutive, not tissue-restricted
+            """),
+            ("Filter 4 — Absence of Repressive Marks (645 retained, 2 eliminated)", """
+- **Marks**: H3K27me3 (Polycomb) and H3K9me3 (constitutive heterochromatin)
+- **Criterion**: Fold-change < 2.0 in ≥ 80% of cell lines
+            """),
+            ("Filter 5 — Constitutive Hypomethylation (599 retained, 46 eliminated)", """
+- **Source**: WGBS — 8 of 11 cell lines had data
+- **Criterion**: Mean CpG methylation < 10% in ≥ 80% of cell lines with WGBS data
+            """),
+        ]:
+            with st.expander(title):
+                st.markdown(content)
 
-        st.markdown("#### Filter 2: CpG Island Overlap ≥ 40%")
-        st.markdown("""
-        - **Source**: UCSC cpgIslandExt track
-        - **Pre-processing**: Candidate coordinates extended to encompass adjacent CpG islands (±500 bp flanking window)
-        - **Criterion**: ≥ 40% overlap with CpG islands after extension
-        - **Why 40% and not 50%**: TBP/PSMB1 UCOE has 46% overlap due to two discontinuous CpG islands
-        - **Eliminated**: 97 candidates (12.3%)
-        """)
-
-        st.markdown("#### Filter 3: Active Histone Marks ≥ 80% of Cell Lines")
-        st.markdown("""
-        - **Marks**: H3K4me3 and H3K27ac (both required independently)
-        - **Source**: ChIP-seq fold-change bigWig files (ENCODE)
-        - **Criterion**: Fold-change > 2.0 in ≥ 80% of cell lines with available data
-        - **Rationale**: UCOE activity must be ubiquitous, not tissue-specific
-        - **Eliminated**: 22 candidates (3.2%)
-        """)
-
-        st.markdown("#### Filter 4: Repressive Marks Absent ≥ 80% of Cell Lines")
-        st.markdown("""
-        - **Marks**: H3K27me3 (Polycomb) and H3K9me3 (heterochromatin)
-        - **Criterion**: Fold-change < 2.0 in ≥ 80% of cell lines
-        - **Rationale**: Repressive marks are incompatible with constitutively open chromatin
-        - **Eliminated**: 25 candidates (3.7%)
-        """)
-
-        st.markdown("#### Filter 5: Constitutive Hypomethylation")
-        st.markdown("""
-        - **Source**: Whole-Genome Bisulfite Sequencing (WGBS) — 8 of 11 cell lines
-        - **Criterion**: Mean CpG methylation < 10% in ≥ 80% of cell lines with WGBS data
-        - **Rationale**: UCOEs must maintain unmethylated CpG islands across all cell types
-        - **Eliminated**: 46 candidates (7.1%)
-        """)
-
-        st.markdown("#### Cell Lines Used")
+        st.markdown("#### Cell lines used (11 Roadmap Epigenomics)")
         cell_lines = pd.DataFrame({
-            "Cell Line": ["E003", "E004", "E005", "E006", "E007", "E011", "E012", "E013", "E016", "E024", "E066"],
-            "Type": [
+            "ID":   ["E003","E004","E005","E006","E007","E011","E012","E013","E016","E024","E066"],
+            "Cell line": [
                 "H1 ES cells", "H1 BMP4-derived mesendoderm", "H1 BMP4-derived trophoblast",
                 "H1 derived mesenchymal stem cells", "H1 derived neural progenitor",
-                "hESC derived CD184+ endoderm", "hESC derived CD56+ ectoderm",
-                "hESC derived CD56+ mesoderm", "HUES64 ES cells",
+                "hESC-derived CD184+ endoderm", "hESC-derived CD56+ ectoderm",
+                "hESC-derived CD56+ mesoderm", "HUES64 ES cells",
                 "ES-UCSF4 ES cells", "Liver",
             ],
         })
         st.dataframe(cell_lines, use_container_width=True, hide_index=True)
+        st.caption(
+            "Cell lines were selected to include pluripotent and early-differentiation "
+            "states, ensuring that activity filters are not biased toward any single lineage."
+        )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1233,53 +1740,87 @@ elif page == "Methods & Glossary":
 # ══════════════════════════════════════════════════════════════════════════════
 elif page == "Downloads":
     st.title("Downloads")
-
-    st.markdown("""
-    All data generated by the UCOE discovery pipeline is available for download below.
-    Please cite this work if you use these data in your research.
-    """)
-
-    # Full scored candidates TSV
-    st.subheader("Scored Candidates (all 599)")
-    tsv_data = scored.to_csv(sep="\t", index=False)
-    st.download_button(
-        "Download scored_candidates.tsv",
-        tsv_data, "ucoe_scored_candidates.tsv", "text/tab-separated-values",
+    st.markdown(
+        "All datasets generated by the UCOE discovery pipeline are available below. "
+        "Please cite this work if you use these data."
     )
 
-    # Reference profile
-    st.subheader("Reference UCOE Profile (3 known UCOEs)")
-    ref_data = ref.to_csv(sep="\t", index=False)
-    st.download_button(
-        "Download reference_profile.tsv",
-        ref_data, "ucoe_reference_profile.tsv", "text/tab-separated-values",
-    )
+    col_dl1, col_dl2 = st.columns(2)
 
-    # Top 20 summary
-    st.subheader("Top 20 Candidates")
-    top20 = scored.nsmallest(20, "composite_rank")[
-        ["composite_rank", "label", "chrom", "start", "end", "length",
-         "composite_score", "mahalanobis_dist", "cosine_sim"]
-    ]
-    st.dataframe(top20, use_container_width=True, hide_index=True)
+    with col_dl1:
+        st.subheader("Candidate Data")
 
-    # FASTA (if exists)
-    fasta_path = DATA_DIR / "ucoe_sequences.fa"
-    if fasta_path.exists():
-        st.subheader("Candidate Sequences (FASTA)")
+        st.markdown("**Scored candidates (all 599)**")
         st.download_button(
-            "Download ucoe_sequences.fa",
-            fasta_path.read_text(),
-            "ucoe_sequences.fa", "text/plain",
+            "Download scored_candidates.tsv",
+            scored.to_csv(sep="\t", index=False),
+            "ucoe_scored_candidates.tsv", "text/tab-separated-values",
         )
 
+        st.markdown("**Integrated classification (ETS, conservation, biophysical)**")
+        if integrated is not None:
+            st.download_button(
+                "Download ucoe_integrated_classification.tsv",
+                integrated.to_csv(sep="\t", index=False),
+                "ucoe_integrated_classification.tsv", "text/tab-separated-values",
+            )
+
+        st.markdown("**Top 20 candidates**")
+        top20 = scored_full.nsmallest(20, "composite_rank")[[
+            "composite_rank", "label", "chrom", "start", "end", "length",
+            "composite_score", "mahalanobis_dist", "cosine_sim",
+        ]]
+        st.dataframe(top20.round(4), use_container_width=True, hide_index=True)
+        st.download_button(
+            "Download top20.tsv",
+            top20.to_csv(sep="\t", index=False),
+            "ucoe_top20.tsv", "text/tab-separated-values",
+        )
+
+    with col_dl2:
+        st.subheader("Reference & Validation Data")
+
+        st.markdown("**Reference UCOE profile (3 known UCOEs)**")
+        st.download_button(
+            "Download reference_profile.tsv",
+            ref.to_csv(sep="\t", index=False),
+            "ucoe_reference_profile.tsv", "text/tab-separated-values",
+        )
+
+        st.markdown("**LOO cross-validation results**")
+        st.download_button(
+            "Download loo_validation.tsv",
+            loo_df.to_csv(sep="\t", index=False),
+            "ucoe_loo_validation.tsv", "text/tab-separated-values",
+        )
+
+        st.markdown("**Weight sensitivity analysis**")
+        st.download_button(
+            "Download sensitivity_analysis.tsv",
+            sens_raw.to_csv(sep="\t", index=False),
+            "ucoe_sensitivity_analysis.tsv", "text/tab-separated-values",
+        )
+
+        fasta_path = DATA_DIR / "ucoe_sequences.fa"
+        if fasta_path.exists():
+            st.markdown("**Candidate sequences (FASTA)**")
+            st.download_button(
+                "Download ucoe_sequences.fa",
+                fasta_path.read_text(),
+                "ucoe_sequences.fa", "text/plain",
+            )
+
     st.markdown("---")
-    st.markdown(
-        "**Pipeline source code**: Available upon request or at publication.  \n"
-        "**Genome assembly**: GRCh38/hg38  \n"
-        "**Epigenomic data**: ENCODE / Roadmap Epigenomics (11 cell lines)  \n"
-        "**Gene annotation**: GENCODE v44  \n"
-    )
+    st.markdown(f"""
+    | | |
+    |---|---|
+    | **Genome assembly** | GRCh38 / hg38 |
+    | **Gene annotation** | GENCODE v44 |
+    | **Epigenomic data** | ENCODE / Roadmap Epigenomics (11 cell lines) |
+    | **Housekeeping genes** | Human Protein Atlas |
+    | **CpG islands** | UCSC cpgIslandExt |
+    | **Pipeline source code** | [github.com/0stetti/ucoe-discovery-pipeline](https://github.com/0stetti/ucoe-discovery-pipeline) |
+    """)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1292,44 +1833,61 @@ elif page == "About":
     ### What are UCOEs?
 
     **Ubiquitous Chromatin Opening Elements (UCOEs)** are DNA regulatory sequences
-    located at bidirectional promoters between housekeeping genes. They maintain
-    constitutively open chromatin and prevent epigenetic silencing of adjacent
-    transgenes, regardless of chromosomal integration site.
+    at bidirectional promoters between divergently transcribed housekeeping genes.
+    They maintain constitutively open chromatin and resist epigenetic silencing of
+    adjacent transgenes regardless of chromosomal integration site — a property
+    exploited in stable gene expression systems for biopharmaceutical production
+    and gene therapy.
 
-    Only **3 UCOEs** have been experimentally validated in the human genome:
-    - **A2UCOE** (HNRNPA2B1/CBX3) — Williams et al., 2005
-    - **TBP/PSMB1** — Antoniou, Harland & Mustoe, 2003
-    - **SRF-UCOE** (SURF1/SURF2) — Rudina & Smolke, 2019
+    Only **3 UCOEs** have been experimentally characterised in the human genome.
+    """)
 
-    ### About this pipeline
+    k1, k2, k3 = st.columns(3)
+    for col, name, genes, chrom in [
+        (k1, "A2UCOE",    "HNRNPA2B1 / CBX3", "chr12"),
+        (k2, "TBP/PSMB1", "TBP / PSMB1",      "chr6"),
+        (k3, "SRF-UCOE",  "SURF1 / SURF2",     "chr9"),
+    ]:
+        col.markdown(f"""
+        <div style="background:{C_BGCARD};border:1px solid {C_BORDER};
+                    border-top:3px solid {C_RED};border-radius:10px;padding:16px 18px">
+        <div style="font-weight:700;color:{C_NAVY};font-size:1rem">{name}</div>
+        <div style="color:{C_GRAY};font-size:0.88rem;margin:4px 0">{genes}</div>
+        <div style="color:{C_BLUE};font-size:0.82rem;font-weight:600">{chrom}</div>
+        </div>""", unsafe_allow_html=True)
 
-    This two-phase pipeline identifies UCOE candidates by:
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("""
+    ### Pipeline overview
 
-    **Phase I** — Sequential filtering based on shared biological properties:
-    1. Divergent promoters between housekeeping genes (Human Protein Atlas)
-    2. CpG island overlap
-    3. Ubiquitous active histone marks (H3K4me3, H3K27ac)
-    4. Absence of repressive marks (H3K27me3, H3K9me3)
-    5. Constitutive hypomethylation
+    **Phase I** — Sequential epigenomic filtering (789 → 599 candidates):
+    1. Bidirectional HKG promoters (GENCODE v44 + Human Protein Atlas)
+    2. CpG island overlap ≥ 40% (UCSC cpgIslandExt)
+    3. Ubiquitous H3K4me3 + H3K27ac activity (≥ 80% of cell lines)
+    4. Absence of H3K27me3 + H3K9me3 (≥ 80% of cell lines)
+    5. Constitutive hypomethylation < 10% (WGBS, ≥ 80% of cell lines)
 
-    **Phase II** — Multivariate ranking by similarity to the 3 known UCOEs
-    using Mahalanobis distance, cosine similarity, and composite percentile rank.
+    **Phase II** — Multivariate ranking by similarity to the 3 known UCOEs,
+    using Mahalanobis distance (Ledoit-Wolf covariance), cosine similarity,
+    and composite percentile rank over 21 epigenomic features.
 
-    ### Key findings
+    **Validation** — Weight sensitivity analysis (29 combinations on the simplex)
+    identifies 7 candidates with 100% rank stability in the top 20.
 
-    - **ETS motif enrichment**: The ETS binding hexamer (CGGAAG) is consistently
-      present across all 3 known UCOEs at ~2.5 motifs/kb
-    - **WW dinucleotide composition**: Candidates are enriched in WW dinucleotides
-      (38% more than generic CpG islands), reducing nucleosome propensity
-    - **Evolutionary conservation**: ETS motifs in UCOEs are under strong
-      purifying selection (PhyloP = 0.901 at motifs vs. 0.371 outside)
+    ### Top candidate
+
+    **SMIM27/TOPORS** (chr9:32,550,561–32,552,586 · 2,025 bp) achieves the
+    highest composite score (S = 0.787), with 7 ETS motifs (3.46/kb),
+    4 positioned within the nucleosome-free region, and biophysical properties
+    consistent with UCOE-like chromatin architecture.
 
     ### Citation
 
     *Manuscript in preparation.*
 
-    Ostetti, E.R.S.; Manieri, T.M.; Moro, A.M. (2026). Computational identification and
-    characterization of UCOE candidates in the human genome.
+    Ostetti, E.R.S.; Manieri, T.M.; Moro, A.M. (2026).
+    Computational identification and characterisation of Ubiquitous Chromatin
+    Opening Element candidates in the human genome.
     """)
 
     st.markdown("---")
