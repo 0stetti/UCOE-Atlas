@@ -815,7 +815,6 @@ elif page == "Candidate Detail":
         total  = sum(row_h)
         row_h  = [h / total for h in row_h]
 
-        n_rows  = len(panel_names)
         fig_ucsc = make_subplots(
             rows=n_rows, cols=1, shared_xaxes=True,
             row_heights=row_h, vertical_spacing=0.02,
