@@ -287,6 +287,14 @@ def load_conservation_top50():
     return {}
 
 
+@st.cache_data
+def load_phastcons_top50():
+    npz_path = DATA_DIR / "phastcons_top50.npz"
+    if npz_path.exists():
+        return dict(np.load(npz_path, allow_pickle=True))
+    return {}
+
+
 # ── Load everything ──
 scored, ref              = load_data()
 struct_cand, struct_known, struct_ctrl = load_structural()
@@ -775,22 +783,37 @@ elif page == "Candidate Detail":
                                  else 0.0 for i in range(length)])
         cpg_vals    = np.convolve(cpg_arr, np.ones(WINDOW), mode="same")
 
-        # PhyloP
-        cons_key   = f"{cand['gene1']}_{cand['gene2']}"
-        has_cons   = cons_key in conservation_data
-        phylop_raw = conservation_data.get(cons_key, None)
+        # PhyloP + PhastCons
+        phastcons_data = load_phastcons_top50()
+        cons_key       = f"{cand['gene1']}_{cand['gene2']}"
+        has_cons       = cons_key in conservation_data
+        has_phast      = cons_key in phastcons_data
+        phylop_raw     = conservation_data.get(cons_key, None)
+        phast_raw      = phastcons_data.get(cons_key, None)
         if has_cons:
             phylop_s = uniform_filter1d(np.nan_to_num(phylop_raw, nan=0.0), size=5)
             pos_full = np.arange(len(phylop_s))
+        if has_phast:
+            phast_s  = uniform_filter1d(np.nan_to_num(phast_raw,  nan=0.0), size=5)
+            phast_pos = np.arange(len(phast_s))
 
-        # ── Build subplots ────────────────────────────────────────────────────
-        panel_names = ["A  Gene Structure", "B  GC% & CpG Density", "C  ETS Motif Density"]
-        row_h       = [0.32, 0.36, 0.32]
+        # Panel list and row heights
+        # Fixed order: A gene struct | B PhyloP | C PhastCons | D GC%+CpG
+        panels = [("A", "Gene structure", 0.22)]
         if has_cons:
-            panel_names.insert(1, "B  PhyloP Conservation (100 vertebrates)")
-            panel_names[2] = "C  GC% & CpG Density"
-            panel_names[3] = "D  ETS Motif Density"
-            row_h = [0.24, 0.30, 0.26, 0.20]
+            panels.append(("B", "PhyloP (100 vertebrates)", 0.26))
+        if has_phast:
+            panels.append((panels[-1][0] if not has_cons else "C", "PhastCons (100 vertebrates)", 0.22))
+        # Relabel after all panels known
+        letters = "ABCD"
+        panels  = [(letters[i], p[1], p[2]) for i, p in enumerate(panels)]
+        panels.append((letters[len(panels)], "GC% & CpG density", 0.30))
+
+        n_rows = len(panels)
+        row_h  = [p[2] for p in panels]
+        # Normalise
+        total  = sum(row_h)
+        row_h  = [h / total for h in row_h]
 
         n_rows  = len(panel_names)
         fig_ucsc = make_subplots(
@@ -904,19 +927,17 @@ elif page == "Candidate Detail":
         )
         cur += 1
 
-        # ── Panel B: PhyloP (if available) ───────────────────────────────────
+        # ── Panel B: PhyloP ──────────────────────────────────────────────────
         if has_cons:
             _shade_ets(fig_ucsc, ets_all, cur)
-            pos_vals = np.maximum(phylop_s, 0)
-            neg_vals = np.minimum(phylop_s, 0)
             fig_ucsc.add_trace(go.Scatter(
-                x=pos_full, y=pos_vals,
+                x=pos_full, y=np.maximum(phylop_s, 0),
                 mode="lines", name="Conserved",
                 line=dict(color=P_AQUA, width=0.6),
                 fill="tozeroy", fillcolor="rgba(111,195,200,0.70)",
             ), row=cur, col=1)
             fig_ucsc.add_trace(go.Scatter(
-                x=pos_full, y=neg_vals,
+                x=pos_full, y=np.minimum(phylop_s, 0),
                 mode="lines", name="Accelerated",
                 line=dict(color=P_ROSE, width=0.6),
                 fill="tozeroy", fillcolor="rgba(242,154,160,0.60)",
@@ -929,9 +950,23 @@ elif page == "Candidate Detail":
             )
             cur += 1
 
-        # ── Panel C: GC% + CpG density ───────────────────────────────────────
+        # ── Panel C: PhastCons ───────────────────────────────────────────────
+        if has_phast:
+            _shade_ets(fig_ucsc, ets_all, cur)
+            fig_ucsc.add_trace(go.Scatter(
+                x=phast_pos, y=phast_s,
+                mode="lines", name="PhastCons",
+                line=dict(color=P_MINT, width=0.8),
+                fill="tozeroy", fillcolor="rgba(143,207,168,0.65)",
+            ), row=cur, col=1)
+            fig_ucsc.update_yaxes(
+                title_text="PhastCons", title_font=dict(size=9, color=P_SLATE),
+                range=[0, 1.05], row=cur, col=1,
+            )
+            cur += 1
+
+        # ── Panel D: GC% + CpG density ───────────────────────────────────────
         _shade_ets(fig_ucsc, ets_all, cur)
-        # GC% — smooth filled area, full coverage (per-base convolution)
         fig_ucsc.add_trace(go.Scatter(
             x=seq_pos, y=gc_vals, mode="lines", name="GC %",
             line=dict(color=P_SKY, width=1.8),
@@ -939,9 +974,8 @@ elif page == "Candidate Detail":
         ), row=cur, col=1)
         fig_ucsc.add_hline(y=50, line_color=P_GHOST, line_width=0.7,
                            line_dash="dot", row=cur, col=1)
-        # CpG — thin bars (width=1 matches per-base resolution, lavender fill)
         cpg_max    = float(cpg_vals.max()) if cpg_vals.max() > 0 else 1.0
-        cpg_scaled = cpg_vals / cpg_max * 95  # scale to same y-axis as GC%
+        cpg_scaled = cpg_vals / cpg_max * 95
         fig_ucsc.add_trace(go.Bar(
             x=seq_pos, y=cpg_scaled, name="CpG / window",
             marker_color="rgba(192,168,220,0.62)", width=1,
@@ -949,22 +983,6 @@ elif page == "Candidate Detail":
         fig_ucsc.update_yaxes(
             title_text="GC %", title_font=dict(size=9, color=P_SLATE),
             range=[0, 100], row=cur, col=1,
-        )
-        cur += 1
-
-        # ── Panel D: ETS motif density ────────────────────────────────────────
-        ets_dens_pos, ets_dens_vals = [], []
-        STEP = 100
-        for i in range(0, length - 200 + 1, STEP):
-            ets_dens_pos.append(i + 100)
-            ets_dens_vals.append(sum(1 for s2, *_ in ets_all if i <= s2 < i + 200))
-        fig_ucsc.add_trace(go.Bar(
-            x=ets_dens_pos, y=ets_dens_vals, name="ETS / 200 bp",
-            marker_color=P_PEACH, opacity=0.80, width=STEP * 0.8,
-        ), row=cur, col=1)
-        fig_ucsc.update_yaxes(
-            title_text="ETS / 200 bp", title_font=dict(size=9, color=P_SLATE),
-            dtick=1, row=cur, col=1,
         )
 
         # ── Shared layout ─────────────────────────────────────────────────────
@@ -996,6 +1014,45 @@ elif page == "Candidate Detail":
             )
 
         st.plotly_chart(fig_ucsc, use_container_width=True)
+
+        # ── Legend ────────────────────────────────────────────────────────────
+        def _leg_item(color, label, shape="rect"):
+            if shape == "triangle":
+                icon = (f"<span style='display:inline-block;width:0;height:0;"
+                        f"border-left:6px solid transparent;border-right:6px solid transparent;"
+                        f"border-top:10px solid {color};vertical-align:middle;"
+                        f"margin-right:5px'></span>")
+            else:
+                icon = (f"<span style='display:inline-block;width:12px;height:10px;"
+                        f"background:{color};border-radius:2px;vertical-align:middle;"
+                        f"margin-right:5px;opacity:0.82'></span>")
+            return f"{icon}<span style='font-size:0.78rem;color:{P_SLATE}'>{label}</span>"
+
+        legend_items = [
+            _leg_item(P_AQUA,     f"{cand['gene1']} (+)"),
+            _leg_item(P_ROSE,     f"{cand['gene2']} (−)"),
+            _leg_item(P_PEACH,    "ETS motif (CGGAA[GA])", "triangle"),
+            _leg_item("rgba(246,196,122,0.55)", "ETS position (all panels)"),
+        ]
+        if has_cons:
+            legend_items += [
+                _leg_item("rgba(111,195,200,0.82)", "PhyloP > 0 — conserved"),
+                _leg_item("rgba(242,154,160,0.82)", "PhyloP < 0 — accelerated"),
+            ]
+        if has_phast:
+            legend_items.append(_leg_item("rgba(143,207,168,0.82)", "PhastCons probability"))
+        legend_items += [
+            _leg_item(P_SKY,      "GC content (%)"),
+            _leg_item(P_LAVENDER, "CpG dinucleotide density"),
+        ]
+
+        st.markdown(
+            "<div style='display:flex;flex-wrap:wrap;gap:16px;padding:8px 4px;"
+            f"border-top:1px solid {P_RULE};margin-top:4px'>"
+            + "".join(f"<div>{item}</div>" for item in legend_items)
+            + "</div>",
+            unsafe_allow_html=True,
+        )
 
         # ── ETS summary table ─────────────────────────────────────────────────
         if ets_all:
