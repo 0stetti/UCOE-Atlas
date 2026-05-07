@@ -854,6 +854,26 @@ elif page == "Candidate Detail":
     else:
         st.info("Integrated classification data not available for this candidate.")
 
+    # ── Integrated Locus Analysis (top candidate only) ──
+    _fig_path = DATA_DIR / "fig_smim27_topors_composite.png"
+    _is_smim27 = (
+        cand.get("gene1", "") == "SMIM27" or cand.get("gene2", "") == "SMIM27"
+        or "SMIM27" in str(cand.get("label", ""))
+        or cand.get("rank", 9999) == 1
+    )
+    if _is_smim27 and _fig_path.exists():
+        st.markdown("---")
+        st.subheader("Integrated Locus Analysis")
+        st.caption(
+            "Four-panel genomic view of the SMIM27/TOPORS locus: "
+            "gene architecture and nucleosome-free regions (A), "
+            "PhyloP vertebrate conservation (B), "
+            "PhastCons conservation probability (C), "
+            "and GC content with CpG density (D). "
+            "Gold vertical bands mark ETS motif positions."
+        )
+        st.image(str(_fig_path), use_column_width=True)
+
     st.markdown("---")
 
     # ── DNA Biophysical Properties ──
