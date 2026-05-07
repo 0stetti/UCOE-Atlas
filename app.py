@@ -287,7 +287,6 @@ def load_conservation_top50():
     return {}
 
 
-@st.cache_data
 def load_phastcons_top50():
     npz_path = DATA_DIR / "phastcons_top50.npz"
     if npz_path.exists():
@@ -748,6 +747,7 @@ elif page == "Candidate Detail":
     # ══════════════════════════════════════════════════════════════════════════
     fasta_seqs        = load_fasta_sequences()
     conservation_data = load_conservation_top50()
+    phastcons_data    = load_phastcons_top50()
 
     seq_key = None
     for key in fasta_seqs:
@@ -784,8 +784,7 @@ elif page == "Candidate Detail":
         cpg_vals    = np.convolve(cpg_arr, np.ones(WINDOW), mode="same")
 
         # PhyloP + PhastCons
-        phastcons_data = load_phastcons_top50()
-        cons_key       = f"{cand['gene1']}_{cand['gene2']}"
+        cons_key = f"{cand['gene1']}_{cand['gene2']}"
         has_cons       = cons_key in conservation_data
         has_phast      = cons_key in phastcons_data
         phylop_raw     = conservation_data.get(cons_key, None)
