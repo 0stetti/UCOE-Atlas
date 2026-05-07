@@ -29,19 +29,19 @@ st.set_page_config(
 # ══════════════════════════════════════════════════════════════════════════════
 # DESIGN SYSTEM — colors, CSS, Plotly template
 # ══════════════════════════════════════════════════════════════════════════════
-C_NAVY   = "#0D1B4B"
-C_BLUE   = "#1565C0"
-C_TEAL   = "#00838F"
-C_GREEN  = "#2E7D32"
-C_AMBER  = "#E65100"
-C_RED    = "#C62828"
-C_PURPLE = "#6A1B9A"
-C_GRAY   = "#546E7A"
-C_BGCARD = "#F8F9FC"
-C_BORDER = "#E3E8F0"
+C_NAVY   = "#1C2B4A"
+C_BLUE   = "#2C5282"
+C_TEAL   = "#2B7A78"
+C_GREEN  = "#276749"
+C_AMBER  = "#B7791F"
+C_RED    = "#9B2335"
+C_PURPLE = "#553C9A"
+C_GRAY   = "#4A5568"
+C_BGCARD = "#F7F8FA"
+C_BORDER = "#E2E8F0"
 
 PALETTE = [C_BLUE, C_TEAL, C_AMBER, C_GREEN, C_RED, C_PURPLE, C_GRAY,
-           "#0277BD", "#00695C", "#BF360C", "#1B5E20", "#880E4F"]
+           "#2A4365", "#234E52", "#744210", "#1A4731", "#44337A"]
 
 st.markdown("""
 <style>
@@ -53,84 +53,85 @@ html, body, [class*="css"] {
 
 /* ── Sidebar ── */
 [data-testid="stSidebar"] {
-    background: #FFFFFF !important;
-    border-right: 1px solid #E3E8F0 !important;
+    background: #F7F8FA !important;
+    border-right: 1px solid #E2E8F0 !important;
 }
-[data-testid="stSidebar"] * { color: #1a1a2e !important; }
-[data-testid="stSidebar"] .stSelectbox > div > div {
-    background: #F8F9FC !important;
-    border-color: #C5CAE9 !important;
-    color: #1a1a2e !important;
+[data-testid="stSidebar"] * { color: #2D3748 !important; }
+[data-testid="stSidebar"] .stRadio label {
+    font-size: 0.88rem !important;
+    padding: 6px 0 !important;
+    color: #4A5568 !important;
 }
-[data-testid="stSidebar"] hr { border-color: #E3E8F0 !important; }
+[data-testid="stSidebar"] hr { border-color: #E2E8F0 !important; }
 
 /* ── Metric cards ── */
 [data-testid="metric-container"] {
-    background: linear-gradient(135deg, #F8F9FC 0%, #EEF2FF 100%);
-    border: 1px solid #C5CAE9;
-    border-radius: 12px;
-    padding: 18px 22px !important;
-    box-shadow: 0 2px 10px rgba(13,27,75,0.07);
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    border-radius: 8px;
+    padding: 16px 20px !important;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
 [data-testid="stMetricValue"] {
-    font-size: 2rem !important;
+    font-size: 1.9rem !important;
     font-weight: 700 !important;
-    color: #0D1B4B !important;
+    color: #1C2B4A !important;
 }
 [data-testid="stMetricLabel"] {
-    font-weight: 600 !important;
-    color: #546E7A !important;
-    font-size: 0.82rem !important;
-    letter-spacing: 0.03em !important;
+    font-weight: 500 !important;
+    color: #718096 !important;
+    font-size: 0.8rem !important;
+    letter-spacing: 0.04em !important;
     text-transform: uppercase !important;
 }
 
 /* ── Page titles ── */
-h1 { color: #0D1B4B !important; font-weight: 700 !important; letter-spacing: -0.02em !important; }
-h2 { color: #263238 !important; font-weight: 600 !important; }
-h3 { color: #37474F !important; font-weight: 600 !important; }
+h1 { color: #1C2B4A !important; font-weight: 700 !important; letter-spacing: -0.02em !important; }
+h2 { color: #2D3748 !important; font-weight: 600 !important; }
+h3 { color: #4A5568 !important; font-weight: 600 !important; }
 
 /* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] {
-    gap: 8px;
-    border-bottom: 2px solid #E3E8F0;
+    gap: 4px;
+    border-bottom: 1px solid #E2E8F0;
 }
 .stTabs [data-baseweb="tab"] {
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: #546E7A;
-    padding: 10px 20px;
-    border-radius: 8px 8px 0 0;
+    font-weight: 500;
+    font-size: 0.88rem;
+    color: #718096;
+    padding: 8px 18px;
+    border-radius: 6px 6px 0 0;
 }
 .stTabs [aria-selected="true"] {
-    color: #1565C0 !important;
-    background: #EEF2FF !important;
-    border-bottom: 2px solid #1565C0 !important;
+    color: #1C2B4A !important;
+    background: #EDF2F7 !important;
+    border-bottom: 2px solid #2C5282 !important;
+    font-weight: 600 !important;
 }
 
 /* ── Dataframe ── */
-[data-testid="stDataFrame"] { border-radius: 8px; overflow: hidden; border: 1px solid #E3E8F0; }
+[data-testid="stDataFrame"] { border-radius: 6px; overflow: hidden; border: 1px solid #E2E8F0; }
 
 /* ── Expander ── */
 .streamlit-expanderHeader {
     font-weight: 600 !important;
-    color: #1565C0 !important;
-    background: #F8F9FC !important;
-    border-radius: 8px !important;
+    color: #2D3748 !important;
+    background: #F7F8FA !important;
+    border-radius: 6px !important;
 }
 
 /* ── Buttons ── */
 .stDownloadButton button {
-    background: #1565C0 !important;
+    background: #2C5282 !important;
     color: white !important;
-    border-radius: 8px !important;
-    font-weight: 600 !important;
+    border-radius: 6px !important;
+    font-weight: 500 !important;
     border: none !important;
 }
 
 /* ── Info/success/warning ── */
 .stInfo, .stSuccess, .stWarning, .stError {
-    border-radius: 8px !important;
+    border-radius: 6px !important;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -167,25 +168,27 @@ def apply_template(fig, height=420, margin=None):
 
 def kpi_card(title, value, subtitle="", color=C_BLUE):
     return f"""
-    <div style="background:linear-gradient(135deg,{color}10,{color}1A);
-                border:1px solid {color}40; border-left:4px solid {color};
-                border-radius:10px; padding:20px 22px; height:100%;">
-      <div style="font-size:2rem;font-weight:700;color:{color};line-height:1.1">{value}</div>
-      <div style="font-weight:600;color:#1a1a2e;margin:4px 0 2px;font-size:0.95rem">{title}</div>
-      <div style="color:#607D8B;font-size:0.82rem">{subtitle}</div>
+    <div style="background:#FFFFFF; border:1px solid #E2E8F0;
+                border-left:3px solid {color};
+                border-radius:8px; padding:18px 20px; height:100%;
+                box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+      <div style="font-size:1.85rem;font-weight:700;color:#1C2B4A;line-height:1.1">{value}</div>
+      <div style="font-weight:600;color:#2D3748;margin:5px 0 2px;font-size:0.9rem">{title}</div>
+      <div style="color:#718096;font-size:0.8rem">{subtitle}</div>
     </div>"""
 
 
 def finding_card(icon, title, value, description, color):
     return f"""
-    <div style="background:white; border:1px solid {color}30;
-                border-top:4px solid {color}; border-radius:10px;
-                padding:22px; box-shadow:0 2px 12px rgba(0,0,0,0.06); height:100%">
-      <div style="font-size:1.8rem;margin-bottom:8px">{icon}</div>
-      <div style="font-size:1.4rem;font-weight:700;color:{color};margin-bottom:4px">{value}</div>
-      <div style="font-weight:600;color:#1a1a2e;margin-bottom:8px;font-size:0.95rem">{title}</div>
-      <div style="color:#546E7A;font-size:0.85rem;line-height:1.5">{description}</div>
+    <div style="background:#FFFFFF; border:1px solid #E2E8F0;
+                border-top:3px solid {color}; border-radius:8px;
+                padding:20px 22px; box-shadow:0 1px 4px rgba(0,0,0,0.05); height:100%">
+      <div style="font-size:1.35rem;font-weight:700;color:{color};margin-bottom:3px">{value}</div>
+      <div style="font-weight:600;color:#2D3748;margin-bottom:8px;font-size:0.9rem">{title}</div>
+      <div style="color:#718096;font-size:0.83rem;line-height:1.55">{description}</div>
     </div>"""
+
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -345,83 +348,34 @@ FEATURE_LABELS = {
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
 st.sidebar.markdown(
-    """
-    <div style='padding:4px 0 12px 0;border-bottom:2px solid #E3E8F0;margin-bottom:16px'>
-      <div style='display:flex;align-items:center;gap:10px;margin-bottom:4px'>
-        <span style='font-size:1.7rem'>🧬</span>
-        <div>
-          <div style='font-size:1.25rem;font-weight:700;color:#0D1B4B;line-height:1.1'>UCOE Atlas</div>
-          <div style='font-size:0.72rem;color:#607D8B;font-weight:500;letter-spacing:0.04em;text-transform:uppercase'>Human Genome · GRCh38</div>
-        </div>
-      </div>
-    </div>
-    """,
+    "<div style='padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid #E2E8F0'>"
+    "<div style='font-size:1.2rem;font-weight:700;color:#1C2B4A;letter-spacing:-0.01em'>UCOE Atlas</div>"
+    "<div style='font-size:0.73rem;color:#718096;margin-top:2px'>Human Genome · GRCh38</div>"
+    "</div>",
     unsafe_allow_html=True,
 )
 
-page = st.sidebar.selectbox(
-    "Navigate to",
+page = st.sidebar.radio(
+    "Pages",
     ["Overview", "Candidate Explorer", "Candidate Detail",
      "PCA Explorer", "Validation & Robustness",
      "Methods & Glossary", "Downloads", "About"],
+    label_visibility="collapsed",
 )
 
 st.sidebar.markdown(
-    """
-    <div style='margin:20px 0 4px 0;font-size:0.7rem;font-weight:600;color:#90A4AE;
-                letter-spacing:0.08em;text-transform:uppercase'>Pipeline Summary</div>
-    """,
-    unsafe_allow_html=True,
-)
-
-def _sb_stat(label, value, color="#0D1B4B"):
-    return (
-        f"<div style='display:flex;justify-content:space-between;align-items:center;"
-        f"padding:7px 10px;background:#F8F9FC;border-radius:7px;margin-bottom:5px;"
-        f"border-left:3px solid {color}'>"
-        f"<span style='font-size:0.8rem;color:#546E7A'>{label}</span>"
-        f"<span style='font-size:0.88rem;font-weight:700;color:{color}'>{value}</span>"
-        f"</div>"
-    )
-
-st.sidebar.markdown(
-    _sb_stat("Initial candidates", "789", "#607D8B")
-    + _sb_stat("After Phase I filters", "599", C_BLUE)
-    + _sb_stat("Stable in sensitivity", "7 (100%)", C_GREEN)
-    + _sb_stat("Top candidate score", "0.787", C_TEAL),
-    unsafe_allow_html=True,
-)
-
-st.sidebar.markdown(
-    """
-    <div style='margin:20px 0 4px 0;font-size:0.7rem;font-weight:600;color:#90A4AE;
-                letter-spacing:0.08em;text-transform:uppercase'>Reference UCOEs</div>
-    """,
-    unsafe_allow_html=True,
-)
-
-def _sb_ucoe(name, genes, rank):
-    return (
-        f"<div style='padding:6px 10px;background:#F0F4FF;border-radius:7px;"
-        f"margin-bottom:5px;border-left:3px solid {C_BLUE}'>"
-        f"<div style='font-size:0.78rem;font-weight:600;color:#1565C0'>{name}</div>"
-        f"<div style='font-size:0.72rem;color:#546E7A'>{genes} · rank #{rank}</div>"
-        f"</div>"
-    )
-
-st.sidebar.markdown(
-    _sb_ucoe("A2UCOE", "HNRNPA2B1/CBX3", 27)
-    + _sb_ucoe("TBP-UCOE", "TBP/PSMB1", 121)
-    + _sb_ucoe("SRF-UCOE", "SURF1/SURF2", 188),
-    unsafe_allow_html=True,
-)
-
-st.sidebar.markdown("<div style='margin-top:24px'></div>", unsafe_allow_html=True)
-st.sidebar.markdown(
-    "<p style='font-size:0.73rem;color:#90A4AE;line-height:1.7;border-top:1px solid #E3E8F0;padding-top:12px'>"
-    "E.R. Ostetti &nbsp;·&nbsp; A.M. Moro<br>"
-    "T.M. Manieri<br>"
-    "<span style='color:#B0BEC5'>USP / Instituto Butantan</span></p>",
+    "<div style='margin-top:28px;padding-top:16px;border-top:1px solid #E2E8F0'>"
+    "<div style='font-size:0.7rem;font-weight:600;color:#A0AEC0;letter-spacing:0.06em;"
+    "text-transform:uppercase;margin-bottom:10px'>Reference UCOEs</div>"
+    "<div style='font-size:0.8rem;color:#4A5568;line-height:2'>"
+    "A2UCOE &nbsp;<span style='color:#A0AEC0'>rank 27</span><br>"
+    "TBP/PSMB1 &nbsp;<span style='color:#A0AEC0'>rank 121</span><br>"
+    "SRF-UCOE &nbsp;<span style='color:#A0AEC0'>rank 188</span>"
+    "</div>"
+    "<div style='margin-top:20px;font-size:0.72rem;color:#A0AEC0;line-height:1.7'>"
+    "E.R. Ostetti · A.M. Moro<br>T.M. Manieri<br>USP / Instituto Butantan"
+    "</div>"
+    "</div>",
     unsafe_allow_html=True,
 )
 
@@ -455,7 +409,7 @@ if page == "Overview":
     f1, f2, f3 = st.columns(3)
     with f1:
         st.markdown(finding_card(
-            "🔬", "ETS Motif Enrichment",
+            None, "ETS Motif Enrichment",
             "FE = 1.94 · q = 1.3×10⁻¹³",
             "The CGGAAG hexamer is significantly overrepresented at UCOE candidates "
             "relative to matched CpG island controls, implicating ETS-family "
@@ -464,7 +418,7 @@ if page == "Overview":
         ), unsafe_allow_html=True)
     with f2:
         st.markdown(finding_card(
-            "🧱", "Sequence-Intrinsic Nucleosome Barrier",
+            None, "Sequence-Intrinsic Nucleosome Barrier",
             "+38% WW dinucleotides",
             "Candidates show higher WW (AA·AT·TA·TT) content than CpG island controls "
             "(median 0.112 vs 0.081), reducing thermodynamic affinity for histone "
@@ -473,7 +427,7 @@ if page == "Overview":
         ), unsafe_allow_html=True)
     with f3:
         st.markdown(finding_card(
-            "🌿", "Purifying Selection on ETS Motifs",
+            None, "Purifying Selection on ETS Motifs",
             "PhyloP 0.51 vs 0.40",
             "ETS motif positions show higher mean PhyloP conservation scores than "
             "flanking sequence, consistent with functional constraint on "
