@@ -983,6 +983,13 @@ elif page == "Candidate Detail":
             range=[0, 100], row=cur, col=1,
         )
 
+        # ── ETS vertical guides — dashed line across all panels ─────────────
+        for s, e, _, _ in ets_all:
+            fig_ucsc.add_vline(
+                x=(s + e) / 2,
+                line=dict(color="rgba(246,196,122,0.70)", width=1.0, dash="dash"),
+            )
+
         # ── Shared layout ─────────────────────────────────────────────────────
         fig_ucsc.update_xaxes(
             showgrid=False, showline=True, linecolor=P_RULE, linewidth=0.8,
