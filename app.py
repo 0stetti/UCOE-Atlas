@@ -330,6 +330,45 @@ def load_cpg_islands_precomputed():
     return pd.DataFrame()
 
 
+@st.cache_data
+def load_dnase_all():
+    p = DATA_DIR / "dnase_all.npz"
+    if p.exists():
+        return dict(np.load(p, allow_pickle=True))
+    return {}
+
+
+def detect_nfr_from_dnase(mean_signal, min_len=100, smoothing=15):
+    """
+    Detect Nucleosome-Free Regions from DNase-seq mean signal.
+    NFR = contiguous regions where smoothed DNase signal > background threshold,
+    i.e., peaks of open chromatin. The NFR is the accessible region itself.
+    Uses Otsu-like thresholding on the signal distribution.
+    Returns list of (start, end) tuples in relative coordinates.
+    """
+    from scipy.ndimage import uniform_filter1d
+    sig = uniform_filter1d(np.nan_to_num(mean_signal, nan=0.0), size=smoothing)
+    if sig.max() == 0:
+        return []
+    # Threshold: 25th percentile of non-zero values (captures constitutive accessibility)
+    nonzero = sig[sig > 0]
+    if len(nonzero) == 0:
+        return []
+    threshold = np.percentile(nonzero, 25)
+    above = sig >= threshold
+    nfrs, in_nfr, s0 = [], False, 0
+    for i, a in enumerate(above):
+        if a and not in_nfr:
+            s0, in_nfr = i, True
+        elif not a and in_nfr:
+            if i - s0 >= min_len:
+                nfrs.append((s0, i))
+            in_nfr = False
+    if in_nfr and len(sig) - s0 >= min_len:
+        nfrs.append((s0, len(sig)))
+    return nfrs
+
+
 # ── Load everything ──
 scored, ref              = load_data()
 struct_cand, struct_known, struct_ctrl = load_structural()
@@ -766,6 +805,7 @@ elif page == "Candidate Detail":
     phastcons_data    = load_phastcons_top50()
     ets_motifs_df     = load_ets_motifs()
     cpg_islands_df    = load_cpg_islands_precomputed()
+    dnase_data        = load_dnase_all()
 
     seq_key = None
     for key in fasta_seqs:
@@ -792,14 +832,26 @@ elif page == "Candidate Detail":
             ets_rev = [(m.start(), m.end(), "-", m.group()) for m in _re.finditer(r"[TC]TTCCG", seq)]
             ets_all = sorted(ets_fwd + ets_rev, key=lambda x: x[0])
 
-        # TSS / NFR
+        # TSS positions (used for gene structure panel)
         orig_start_rel = int(cand["orig_start"]) - int(cand["start"])
         orig_end_rel   = int(cand["orig_end"])   - int(cand["start"])
         tss1, tss2     = orig_start_rel, orig_end_rel
-        nfr_regions    = [
-            (max(0, tss1 - 200), min(length, tss1 + 200)),
-            (max(0, tss2 - 200), min(length, tss2 + 200)),
-        ]
+
+        # NFR — use real DNase-seq signal if available, else fall back to TSS ±200 bp
+        _cons_key = f"{cand['gene1']}_{cand['gene2']}"
+        _dnase_mean_key = f"{_cons_key}_mean"
+        has_dnase = _dnase_mean_key in dnase_data
+        if has_dnase:
+            dnase_mean = dnase_data[_dnase_mean_key].astype(np.float32)
+            nfr_regions = detect_nfr_from_dnase(dnase_mean)
+            dnase_cl_names = list(dnase_data.get("__cell_lines__", []))
+        else:
+            dnase_mean = None
+            nfr_regions = [
+                (max(0, tss1 - 200), min(length, tss1 + 200)),
+                (max(0, tss2 - 200), min(length, tss2 + 200)),
+            ]
+            dnase_cl_names = []
 
         # GC% and CpG density — per-base convolution (matches generate_smim27 script)
         seq_pos     = np.arange(length)
@@ -853,16 +905,18 @@ elif page == "Candidate Detail":
             phast_pos = np.arange(len(phast_s))
 
         # Panel list and row heights
-        # Fixed order: A gene struct | B PhyloP | C PhastCons | D GC%+CpG
-        panels = [("A", "Gene structure", 0.22)]
+        # Order: A gene struct | B DNase NFR | C PhyloP | D PhastCons | E GC%+CpG
+        panels = [("?", "Gene structure", 0.20)]
+        if has_dnase:
+            panels.append(("?", "DNase-seq (NFR)", 0.24))
         if has_cons:
-            panels.append(("B", "PhyloP (100 vertebrates)", 0.26))
+            panels.append(("?", "PhyloP (100 vertebrates)", 0.24))
         if has_phast:
-            panels.append((panels[-1][0] if not has_cons else "C", "PhastCons (100 vertebrates)", 0.22))
-        # Relabel after all panels known
-        letters = "ABCD"
+            panels.append(("?", "PhastCons (100 vertebrates)", 0.20))
+        panels.append(("?", "GC% & CpG density", 0.28))
+        # Assign letters
+        letters = "ABCDEFG"
         panels  = [(letters[i], p[1], p[2]) for i, p in enumerate(panels)]
-        panels.append((letters[len(panels)], "GC% & CpG density", 0.30))
 
         n_rows = len(panels)
         row_h  = [p[2] for p in panels]
@@ -992,7 +1046,46 @@ elif page == "Candidate Detail":
         )
         cur += 1
 
-        # ── Panel B: PhyloP ──────────────────────────────────────────────────
+        # ── Panel B: DNase-seq signal + NFR ─────────────────────────────────
+        if has_dnase:
+            _shade_ets(fig_ucsc, ets_all, cur)
+            dnase_pos = np.arange(len(dnase_mean))
+            dnase_smooth = uniform_filter1d(np.nan_to_num(dnase_mean, nan=0.0), size=15)
+
+            # Per cell line (faint lines)
+            if _cons_key in dnase_data:
+                mat = dnase_data[_cons_key]
+                if mat.ndim == 2:
+                    for j, cl in enumerate(dnase_cl_names):
+                        row_sig = uniform_filter1d(np.nan_to_num(mat[j].astype(float), nan=0.0), size=15)
+                        fig_ucsc.add_trace(go.Scatter(
+                            x=dnase_pos, y=row_sig, mode="lines",
+                            name=cl, showlegend=False,
+                            line=dict(color="rgba(136,191,235,0.20)", width=0.6),
+                        ), row=cur, col=1)
+
+            # Mean signal (solid)
+            fig_ucsc.add_trace(go.Scatter(
+                x=dnase_pos, y=dnase_smooth,
+                mode="lines", name="DNase (mean)",
+                line=dict(color=P_SKY, width=1.2),
+                fill="tozeroy", fillcolor="rgba(136,191,235,0.45)",
+            ), row=cur, col=1)
+
+            # NFR shading
+            for ns, ne in nfr_regions:
+                fig_ucsc.add_vrect(
+                    x0=ns, x1=ne, row=cur, col=1,
+                    fillcolor="rgba(246,196,122,0.30)",
+                    layer="below", line_width=0,
+                )
+            fig_ucsc.update_yaxes(
+                title_text="DNase (FC)", title_font=dict(size=9, color=P_SLATE),
+                zeroline=False, row=cur, col=1,
+            )
+            cur += 1
+
+        # ── Panel C: PhyloP ──────────────────────────────────────────────────
         if has_cons:
             _shade_ets(fig_ucsc, ets_all, cur)
             fig_ucsc.add_trace(go.Scatter(
@@ -1135,7 +1228,15 @@ elif page == "Candidate Detail":
             (P_GHOST,  "╌  ETS position"),
         ], pidx); pidx += 1
 
-        # Panel B — PhyloP
+        # Panel B — DNase / NFR
+        if has_dnase:
+            dnase_legend = [
+                (P_SKY,    f"■  DNase signal (mean, {len(dnase_cl_names)} cell lines)"),
+                (P_PEACH,  "■  NFR (open chromatin)"),
+            ]
+            _rleg(fig_ucsc, dnase_legend, pidx); pidx += 1
+
+        # Panel C — PhyloP
         if has_cons:
             _rleg(fig_ucsc, [
                 (P_AQUA,   "■  PhyloP > 0 — conserved"),
@@ -1164,10 +1265,11 @@ elif page == "Candidate Detail":
         if ets_all:
             n_in_nfr = sum(1 for s, e, _, _ in ets_all
                            if any(ns <= s <= ne for ns, ne in nfr_regions))
+            nfr_source = "DNase-seq" if has_dnase else "TSS ±200 bp (estimate)"
             st.caption(
                 f"{len(ets_all)} ETS motifs · "
                 f"{len(ets_all)/length*1000:.2f} motifs/kb · "
-                f"{n_in_nfr} within ±200 bp of TSS (NFR)"
+                f"{n_in_nfr} within NFR ({nfr_source})"
             )
             with st.expander("ETS motif table"):
                 ets_df = pd.DataFrame([
