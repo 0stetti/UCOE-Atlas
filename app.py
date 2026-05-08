@@ -299,17 +299,35 @@ def load_fasta_sequences():
 
 @st.cache_data
 def load_conservation_top50():
-    npz_path = DATA_DIR / "conservation_top50.npz"
-    if npz_path.exists():
-        return dict(np.load(npz_path, allow_pickle=True))
+    for fname in ("conservation_all.npz", "conservation_top50.npz"):
+        p = DATA_DIR / fname
+        if p.exists():
+            return dict(np.load(p, allow_pickle=True))
     return {}
 
 
 def load_phastcons_top50():
-    npz_path = DATA_DIR / "phastcons_top50.npz"
-    if npz_path.exists():
-        return dict(np.load(npz_path, allow_pickle=True))
+    for fname in ("phastcons_all.npz", "phastcons_top50.npz"):
+        p = DATA_DIR / fname
+        if p.exists():
+            return dict(np.load(p, allow_pickle=True))
     return {}
+
+
+@st.cache_data
+def load_ets_motifs():
+    p = DATA_DIR / "ets_motifs_all.tsv"
+    if p.exists():
+        return pd.read_csv(p, sep="\t")
+    return pd.DataFrame()
+
+
+@st.cache_data
+def load_cpg_islands_precomputed():
+    p = DATA_DIR / "cpg_islands_all.tsv"
+    if p.exists():
+        return pd.read_csv(p, sep="\t")
+    return pd.DataFrame()
 
 
 # ── Load everything ──
@@ -746,6 +764,8 @@ elif page == "Candidate Detail":
     fasta_seqs        = load_fasta_sequences()
     conservation_data = load_conservation_top50()
     phastcons_data    = load_phastcons_top50()
+    ets_motifs_df     = load_ets_motifs()
+    cpg_islands_df    = load_cpg_islands_precomputed()
 
     seq_key = None
     for key in fasta_seqs:
@@ -759,10 +779,18 @@ elif page == "Candidate Detail":
         length = len(seq)
         WINDOW = 100
 
-        # ETS motifs
-        ets_fwd = [(m.start(), m.end(), "+", m.group()) for m in _re.finditer(r"CGGAA[GA]", seq)]
-        ets_rev = [(m.start(), m.end(), "-", m.group()) for m in _re.finditer(r"[TC]TTCCG", seq)]
-        ets_all = sorted(ets_fwd + ets_rev, key=lambda x: x[0])
+        # ETS motifs — use pre-computed table if available, else compute on the fly
+        _cand_key = f"{cand['gene1']}_{cand['gene2']}"
+        if not ets_motifs_df.empty and _cand_key in ets_motifs_df["key"].values:
+            _em = ets_motifs_df[ets_motifs_df["key"] == _cand_key]
+            ets_all = [
+                (int(r["rel_start"]), int(r["rel_end"]), r["strand"], r["motif"])
+                for _, r in _em.iterrows()
+            ]
+        else:
+            ets_fwd = [(m.start(), m.end(), "+", m.group()) for m in _re.finditer(r"CGGAA[GA]", seq)]
+            ets_rev = [(m.start(), m.end(), "-", m.group()) for m in _re.finditer(r"[TC]TTCCG", seq)]
+            ets_all = sorted(ets_fwd + ets_rev, key=lambda x: x[0])
 
         # TSS / NFR
         orig_start_rel = int(cand["orig_start"]) - int(cand["start"])
@@ -781,33 +809,35 @@ elif page == "Candidate Detail":
                                  else 0.0 for i in range(length)])
         cpg_vals    = np.convolve(cpg_arr, np.ones(WINDOW), mode="same")
 
-        # CpG island detection — Gardiner-Garden & Frommer (1987)
-        # Criteria per 200 bp window: GC ≥ 50 %, obs/exp CpG ≥ 0.60
-        def find_cpg_islands(s, win=200, gc_thr=0.50, oe_thr=0.60, min_len=200):
-            flagged = np.zeros(len(s), dtype=bool)
-            for i in range(len(s) - win + 1):
-                w = s[i:i + win]
-                gc = (w.count("G") + w.count("C")) / win
-                if gc < gc_thr:
-                    continue
-                nc, ng, ncg = w.count("C"), w.count("G"), w.count("CG")
-                if nc == 0 or ng == 0:
-                    continue
-                if (ncg * win) / (nc * ng) >= oe_thr:
-                    flagged[i:i + win] = True
-            islands, in_isl, s0 = [], False, 0
-            for i, f in enumerate(flagged):
-                if f and not in_isl:
-                    s0, in_isl = i, True
-                elif not f and in_isl:
-                    if i - s0 >= min_len:
-                        islands.append((s0, i))
-                    in_isl = False
-            if in_isl and len(s) - s0 >= min_len:
-                islands.append((s0, len(s)))
-            return islands
-
-        cpg_islands = find_cpg_islands(seq)
+        # CpG islands — use pre-computed table if available, else compute on the fly
+        if not cpg_islands_df.empty and _cand_key in cpg_islands_df["key"].values:
+            _ci = cpg_islands_df[cpg_islands_df["key"] == _cand_key]
+            cpg_islands = [(int(r["rel_start"]), int(r["rel_end"])) for _, r in _ci.iterrows()]
+        else:
+            def find_cpg_islands(s, win=200, gc_thr=0.50, oe_thr=0.60, min_len=200):
+                flagged = np.zeros(len(s), dtype=bool)
+                for i in range(len(s) - win + 1):
+                    w = s[i:i + win]
+                    gc = (w.count("G") + w.count("C")) / win
+                    if gc < gc_thr:
+                        continue
+                    nc, ng, ncg = w.count("C"), w.count("G"), w.count("CG")
+                    if nc == 0 or ng == 0:
+                        continue
+                    if (ncg * win) / (nc * ng) >= oe_thr:
+                        flagged[i:i + win] = True
+                islands, in_isl, s0 = [], False, 0
+                for i, f in enumerate(flagged):
+                    if f and not in_isl:
+                        s0, in_isl = i, True
+                    elif not f and in_isl:
+                        if i - s0 >= min_len:
+                            islands.append((s0, i))
+                        in_isl = False
+                if in_isl and len(s) - s0 >= min_len:
+                    islands.append((s0, len(s)))
+                return islands
+            cpg_islands = find_cpg_islands(seq)
 
         # PhyloP + PhastCons
         cons_key = f"{cand['gene1']}_{cand['gene2']}"
