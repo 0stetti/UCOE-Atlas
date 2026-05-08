@@ -246,7 +246,7 @@ def load_data():
         for name, (g1, g2) in _KNOWN_UCOES.items():
             if {row["gene1"], row["gene2"]} == {g1, g2}:
                 return name
-        return None
+        return ""
     scored["known_ucoe"] = scored.apply(_is_known, axis=1)
     return scored, ref
 
@@ -528,7 +528,7 @@ if page == "Overview":
             labels={"composite_score": "Composite Score"},
         )
         # Known UCOE markers
-        for _, row in scored[scored["known_ucoe"].notna()].iterrows():
+        for _, row in scored[scored["known_ucoe"] != ""].iterrows():
             fig_dist.add_vline(
                 x=row["composite_score"], line_dash="dash", line_color=C_RED, line_width=2,
                 annotation_text=f"<b>{row['known_ucoe']}</b>",
@@ -643,7 +643,7 @@ elif page == "Candidate Explorer":
         if "ets_density_kb" in filtered.columns:
             scatter_df = filtered.dropna(subset=["ets_density_kb"]).copy()
             scatter_df["is_stable"] = scatter_df["label"].isin(stable_labels)
-            scatter_df["is_known"]  = scatter_df["known_ucoe"].notna()
+            scatter_df["is_known"]  = scatter_df["known_ucoe"] != ""
 
             fig_sc = px.scatter(
                 scatter_df, x="ets_density_kb", y="composite_score",
@@ -1409,7 +1409,7 @@ elif page == "PCA Explorer":
         ))
 
     if show_known:
-        known_pca = pca_df[pca_df["known_ucoe"].notna()]
+        known_pca = pca_df[pca_df["known_ucoe"] != ""]
         fig_pca.add_trace(go.Scatter(
             x=known_pca["PC1"], y=known_pca["PC2"],
             mode="markers+text",
