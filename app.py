@@ -1062,15 +1062,12 @@ elif page == "Candidate Detail":
         Y_G1, Y_MOT, Y_G2 = 0.70, 0.0, -0.70
         GH = 0.13   # half-height of gene bar
 
-        # NFR shading — full panel height so it reads as a region
-        for (ns, ne), nfc in zip(
-            nfr_regions,
-            ["rgba(111,195,200,0.14)", "rgba(242,154,160,0.14)"]
-        ):
-            fig_ucsc.add_shape(
-                type="rect", x0=ns, x1=ne, y0=-1.05, y1=1.05,
-                fillcolor=nfc, line=dict(width=0), row=cur, col=1,
-            )
+        # Inter-TSS bidirectional promoter region highlight
+        inter_x0, inter_x1 = min(tss1, tss2), max(tss1, tss2)
+        fig_ucsc.add_shape(
+            type="rect", x0=inter_x0, x1=inter_x1, y0=-1.05, y1=1.05,
+            fillcolor="rgba(192,168,220,0.18)", line=dict(width=0), row=cur, col=1,
+        )
 
         # Chromosome backbone — thin grey line at Y=0
         fig_ucsc.add_shape(
@@ -1119,6 +1116,28 @@ elif page == "Candidate Detail":
                 ),
                 row=cur, col=1,
             )
+            # UCSC-style directional chevrons along gene body
+            gene_len = gx1 - gx0
+            if gene_len > 0:
+                n_chev = max(2, int(gene_len / (length / 18)))
+                chev_spacing = gene_len / (n_chev + 1)
+                chev_xs = [gx0 + chev_spacing * (k + 1) for k in range(n_chev)]
+                # Exclude the arrowhead position (last 2% of gene)
+                chev_xs = [x for x in chev_xs if abs(x - tip_x) > gene_len * 0.04]
+                chev_sym = "triangle-right" if strand == "+" else "triangle-left"
+                fig_ucsc.add_trace(
+                    go.Scatter(
+                        x=chev_xs, y=[gy] * len(chev_xs),
+                        mode="markers",
+                        marker=dict(
+                            symbol=chev_sym, size=7,
+                            color="rgba(255,255,255,0.0)",
+                            line=dict(width=1.5, color=gc),
+                        ),
+                        showlegend=False, hoverinfo="skip",
+                    ),
+                    row=cur, col=1,
+                )
 
         # ETS motifs — tick stem + triangle marker at tip
         for i, (s, e, strand, mseq) in enumerate(ets_all):
@@ -1331,15 +1350,11 @@ elif page == "Candidate Detail":
 
         # Panel A — gene structure
         _panelA_legend = [
-            (P_AQUA,  f"■  {cand['gene1']} (+)"),
-            (P_ROSE,  f"■  {cand['gene2']} (−)"),
-            (P_PEACH, "▼  ETS motif (CGGAA[GA])"),
-            (P_GHOST, "╌  ETS position"),
+            (P_AQUA,    f"■  {cand['gene1']} (+)"),
+            (P_ROSE,    f"■  {cand['gene2']} (−)"),
+            (P_PEACH,   "▼  ETS motif (CGGAA[GA])"),
+            (P_LAVENDER,"░  Bidirectional promoter region"),
         ]
-        if nfr_regions:
-            _panelA_legend.append(
-                (P_AQUA, "░  Open chromatin region (NFR)" if has_dnase else "░  TSS ±200 bp region")
-            )
         _rleg(fig_ucsc, _panelA_legend, pidx); pidx += 1
 
         # Panel B — DNase / NFR
