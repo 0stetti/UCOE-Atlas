@@ -217,6 +217,16 @@ def finding_card(icon, title, value, description, color):
     </div>"""
 
 
+def nav_card(title, description, color=P_AQUA):
+    return f"""
+    <div style="background:{P_BG_SUB};border:1px solid {P_RULE};
+                border-left:3px solid {color};border-radius:4px;
+                padding:16px 18px;margin-bottom:10px">
+      <div style="font-weight:700;color:{P_INK};margin-bottom:6px;font-size:0.95rem">{title}</div>
+      <div style="color:{P_SLATE};font-size:0.82rem;line-height:1.55">{description}</div>
+    </div>"""
+
+
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -445,13 +455,21 @@ st.sidebar.markdown(
     unsafe_allow_html=True,
 )
 
+_PAGES = ["Overview", "Candidate Explorer", "Candidate Detail",
+          "PCA Explorer", "Validation & Robustness",
+          "Methods & Glossary", "Downloads", "About"]
+
+if "page" not in st.session_state:
+    st.session_state.page = "Overview"
+
 page = st.sidebar.radio(
     "Pages",
-    ["Overview", "Candidate Explorer", "Candidate Detail",
-     "PCA Explorer", "Validation & Robustness",
-     "Methods & Glossary", "Downloads", "About"],
+    _PAGES,
+    index=_PAGES.index(st.session_state.get("page", "Overview")),
+    key="_page_radio",
     label_visibility="collapsed",
 )
+st.session_state.page = page
 
 st.sidebar.markdown(
     f"<div style='margin-top:28px;padding-top:14px;border-top:1px solid {P_RULE}'>"
@@ -474,26 +492,36 @@ st.sidebar.markdown(
 # PAGE: OVERVIEW
 # ══════════════════════════════════════════════════════════════════════════════
 if page == "Overview":
-    st.title("UCOE Atlas")
+
+    # ── Hero ──────────────────────────────────────────────────────────────────
     st.markdown(
-        f"<p style='font-size:1.05rem;color:{P_SLATE};margin-top:-8px;margin-bottom:28px'>"
-        "A computational atlas of Ubiquitous Chromatin Opening Element candidates "
+        f"<h1 style='margin-bottom:4px'>UCOE Atlas</h1>"
+        f"<p style='font-size:1.05rem;color:{P_SLATE};margin-top:0;margin-bottom:22px'>"
+        "Computational atlas of Ubiquitous Chromatin Opening Element candidates "
         "in the human genome — GRCh38 · ENCODE/Roadmap Epigenomics · GENCODE v44</p>",
         unsafe_allow_html=True,
     )
-
-    # ── KPI row ──
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Candidates identified", "599")
-    c2.metric("Known UCOEs recovered", "3 / 3")
-    c3.metric("Weight-stable (top 20)", "7")
-    c4.metric("Epigenomic features", "21")
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── Key Findings ──
     st.markdown(
-        "<h2 style='margin-bottom:16px'>Key Findings</h2>",
+        f"""<div style="background:{P_BG_SUB};border:1px solid {P_RULE};
+                       border-left:3px solid {P_AQUA};border-radius:4px;
+                       padding:18px 22px;margin-bottom:30px;
+                       font-size:0.9rem;color:{P_SLATE};line-height:1.8">
+        <b style="color:{P_INK}">Ubiquitous Chromatin Opening Elements (UCOEs)</b> are GC-rich,
+        CpG island-associated genomic elements that maintain constitutively open chromatin
+        independently of cell type — a property exploited in gene therapy and biomanufacturing
+        to achieve stable, position-independent transgene expression.
+        This atlas applies a two-phase computational pipeline to 789 bidirectional promoters
+        of human housekeeping genes, integrating epigenomic data from 11 ENCODE Tier 1/2 cell
+        lines across 21 features. All three experimentally validated human UCOEs
+        (A2UCOE, TBP/PSMB1, SRF-UCOE) are recovered in the top 200 candidates
+        (ranks 27, 121, and 188 out of 599).
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
+    # ── Key Findings ──────────────────────────────────────────────────────────
+    st.markdown(
+        f"<h2 style='margin-bottom:14px'>Key Findings</h2>",
         unsafe_allow_html=True,
     )
     f1, f2, f3 = st.columns(3)
@@ -504,7 +532,7 @@ if page == "Overview":
             "The CGGAAG hexamer is significantly overrepresented at UCOE candidates "
             "relative to matched CpG island controls, implicating ETS-family "
             "transcription factors as core regulators of constitutive chromatin opening.",
-            C_BLUE,
+            P_AQUA,
         ), unsafe_allow_html=True)
     with f2:
         st.markdown(finding_card(
@@ -513,7 +541,7 @@ if page == "Overview":
             "Candidates show higher WW (AA·AT·TA·TT) content than CpG island controls "
             "(median 0.112 vs 0.081), reducing thermodynamic affinity for histone "
             "octamers independently of epigenetic state.",
-            C_TEAL,
+            P_MINT,
         ), unsafe_allow_html=True)
     with f3:
         st.markdown(finding_card(
@@ -522,104 +550,158 @@ if page == "Overview":
             "ETS motif positions show higher mean PhyloP conservation scores than "
             "flanking sequence, consistent with functional constraint on "
             "transcription factor binding sites across vertebrate evolution.",
-            C_GREEN,
+            P_SKY,
         ), unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+
+    # ── Quick-start navigation ─────────────────────────────────────────────────
+    st.markdown(
+        f"<h2 style='margin-bottom:14px'>Explore the Atlas</h2>",
+        unsafe_allow_html=True,
+    )
+    n1, n2, n3 = st.columns(3)
+    with n1:
+        st.markdown(nav_card(
+            "Candidate Explorer",
+            "Browse and filter all 599 candidates by rank, chromosome, score, "
+            "or weight-stability. Download the full table as TSV.",
+            P_AQUA,
+        ), unsafe_allow_html=True)
+        if st.button("Open Candidate Explorer →", key="nav_explorer", use_container_width=True):
+            st.session_state.page = "Candidate Explorer"
+            st.rerun()
+    with n2:
+        st.markdown(nav_card(
+            "Candidate Detail",
+            "Deep-dive into any candidate: epigenomic profile across 11 cell lines, "
+            "ETS motif map, CpG islands, and phylogenetic conservation track.",
+            P_SKY,
+        ), unsafe_allow_html=True)
+        if st.button("Open Candidate Detail →", key="nav_detail", use_container_width=True):
+            st.session_state.page = "Candidate Detail"
+            st.rerun()
+    with n3:
+        st.markdown(nav_card(
+            "Methods & Glossary",
+            "Pipeline methodology, feature definitions, ranking formula, "
+            "and leave-one-out UCOE recovery validation.",
+            P_MINT,
+        ), unsafe_allow_html=True)
+        if st.button("Open Methods →", key="nav_methods", use_container_width=True):
+            st.session_state.page = "Methods & Glossary"
+            st.rerun()
+
+    st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
     st.markdown("---")
 
-    # ── Pipeline funnel ──
-    st.subheader("Phase I — Filtering Pipeline")
+    # ── KPI row ───────────────────────────────────────────────────────────────
+    st.markdown(
+        f"<p style='font-size:0.75rem;font-weight:600;color:{P_GHOST};"
+        "text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px'>At a Glance</p>",
+        unsafe_allow_html=True,
+    )
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Candidates identified", "599",
+              help="Bidirectional HKG promoters passing all 5 Phase I filters")
+    c2.metric("Known UCOEs recovered", "3 / 3",
+              help="A2UCOE (rank 27), TBP/PSMB1 (rank 121), SRF-UCOE (rank 188)")
+    c3.metric("Weight-stable (top 20)", "7",
+              help="Candidates whose rank changes < 5 positions under ±20% weight perturbation")
+    c4.metric("Epigenomic features", "21",
+              help="6 histone marks × 2 + methylation × 2 + DNase × 2 + CpG + GC% + Repli-seq + CTCF + inter-TSS")
 
-    filter_steps = [
-        ("All bidirectional HKG promoters", 789,  0,   C_BLUE),
-        ("+ CpG island overlap ≥ 40%",      692,  97,  C_TEAL),
-        ("+ Active marks ubiquitous ≥ 80%",  647,  45,  "#0277BD"),
-        ("+ Repressive marks absent ≥ 80%",  645,   2,  C_AMBER),
-        ("+ Constitutive hypomethylation",   599,  46,  C_GREEN),
-    ]
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
-    fig_funnel = go.Figure()
-    bar_colors = [s[3] for s in filter_steps]
-    labels     = [s[0] for s in filter_steps]
-    retained   = [s[1] for s in filter_steps]
-    eliminated = [s[2] for s in filter_steps]
+    # ── Pipeline overview (collapsible) ───────────────────────────────────────
+    with st.expander("Pipeline overview", expanded=False):
+        st.subheader("Phase I — Filtering Pipeline")
 
-    fig_funnel.add_trace(go.Bar(
-        y=labels, x=retained, orientation="h",
-        marker_color=bar_colors, opacity=0.82,
-        text=[f"  {r:,}" for r in retained],
-        textposition="inside",
-        insidetextanchor="end",
-        textfont=dict(size=13, color="white", family="Inter, Arial, sans-serif"),
-        hovertemplate="<b>%{y}</b><br>Retained: %{x:,}<extra></extra>",
-        name="Retained",
-    ))
+        filter_steps = [
+            ("All bidirectional HKG promoters", 789,  0,   P_AQUA),
+            ("+ CpG island overlap ≥ 40%",      692,  97,  P_AQUA),
+            ("+ Active marks ubiquitous ≥ 80%",  647,  45,  "#0277BD"),
+            ("+ Repressive marks absent ≥ 80%",  645,   2,  P_PEACH),
+            ("+ Constitutive hypomethylation",   599,  46,  P_MINT),
+        ]
 
-    for i, (label, ret, elim, _) in enumerate(filter_steps):
-        if elim > 0:
-            fig_funnel.add_annotation(
-                x=ret + 22, y=i,
-                text=f"−{elim}",
-                showarrow=False,
-                font=dict(size=11, color=P_ROSE),
-                xanchor="left",
+        fig_funnel = go.Figure()
+        bar_colors = [s[3] for s in filter_steps]
+        labels     = [s[0] for s in filter_steps]
+        retained   = [s[1] for s in filter_steps]
+
+        fig_funnel.add_trace(go.Bar(
+            y=labels, x=retained, orientation="h",
+            marker_color=bar_colors, opacity=0.82,
+            text=[f"  {r:,}" for r in retained],
+            textposition="inside",
+            insidetextanchor="end",
+            textfont=dict(size=13, color="white", family="Inter, Arial, sans-serif"),
+            hovertemplate="<b>%{y}</b><br>Retained: %{x:,}<extra></extra>",
+            name="Retained",
+        ))
+
+        for i, (label, ret, elim, _) in enumerate(filter_steps):
+            if elim > 0:
+                fig_funnel.add_annotation(
+                    x=ret + 22, y=i,
+                    text=f"−{elim}",
+                    showarrow=False,
+                    font=dict(size=11, color=P_ROSE),
+                    xanchor="left",
+                )
+
+        apply_template(fig_funnel, height=280, margin=dict(l=280, r=80, t=20, b=40))
+        fig_funnel.update_layout(showlegend=False, xaxis_title="Candidates retained")
+        fig_funnel.update_xaxes(range=[0, 900], showticklabels=False, showgrid=False, showline=False)
+        fig_funnel.update_yaxes(autorange="reversed", tickfont=dict(size=12, color=P_SLATE))
+        st.plotly_chart(fig_funnel, use_container_width=True)
+
+        st.markdown("---")
+
+        col_hist, col_phase2 = st.columns([2, 1])
+
+        with col_hist:
+            st.subheader("Phase II — Composite Score Distribution")
+            fig_dist = px.histogram(
+                scored, x="composite_score", nbins=50,
+                color_discrete_sequence=[C_BLUE],
+                labels={"composite_score": "Composite Score"},
             )
-
-    apply_template(fig_funnel, height=280, margin=dict(l=280, r=80, t=20, b=40))
-    fig_funnel.update_layout(showlegend=False, xaxis_title="Candidates retained")
-    fig_funnel.update_xaxes(range=[0, 900], showticklabels=False, showgrid=False, showline=False)
-    fig_funnel.update_yaxes(autorange="reversed", tickfont=dict(size=12, color=P_SLATE))
-    st.plotly_chart(fig_funnel, use_container_width=True)
-
-    st.markdown("---")
-
-    # ── Score distribution ──
-    col_hist, col_phase2 = st.columns([2, 1])
-
-    with col_hist:
-        st.subheader("Phase II — Composite Score Distribution")
-        fig_dist = px.histogram(
-            scored, x="composite_score", nbins=50,
-            color_discrete_sequence=[C_BLUE],
-            labels={"composite_score": "Composite Score"},
-        )
-        # Known UCOE markers
-        for _, row in scored[scored["known_ucoe"] != ""].iterrows():
-            fig_dist.add_vline(
-                x=row["composite_score"], line_dash="dash", line_color=C_RED, line_width=2,
-                annotation_text=f"<b>{row['known_ucoe']}</b>",
-                annotation_position="top", annotation_font=dict(size=11, color=C_RED),
+            for _, row in scored[scored["known_ucoe"] != ""].iterrows():
+                fig_dist.add_vline(
+                    x=row["composite_score"], line_dash="dash", line_color=C_RED, line_width=2,
+                    annotation_text=f"<b>{row['known_ucoe']}</b>",
+                    annotation_position="top", annotation_font=dict(size=11, color=C_RED),
+                )
+            top20_thresh = scored.nsmallest(20, "composite_rank")["composite_score"].min()
+            fig_dist.add_vrect(
+                x0=top20_thresh, x1=scored["composite_score"].max() + 0.01,
+                fillcolor=C_AMBER, opacity=0.07, line_width=0,
+                annotation_text="Top 20", annotation_position="top left",
+                annotation_font=dict(size=11, color=C_AMBER),
             )
-        # Top-20 shading
-        top20_thresh = scored.nsmallest(20, "composite_rank")["composite_score"].min()
-        fig_dist.add_vrect(
-            x0=top20_thresh, x1=scored["composite_score"].max() + 0.01,
-            fillcolor=C_AMBER, opacity=0.07, line_width=0,
-            annotation_text="Top 20", annotation_position="top left",
-            annotation_font=dict(size=11, color=C_AMBER),
-        )
-        apply_template(fig_dist, height=320)
-        fig_dist.update_layout(showlegend=False, yaxis_title="Candidates")
-        st.plotly_chart(fig_dist, use_container_width=True)
+            apply_template(fig_dist, height=320)
+            fig_dist.update_layout(showlegend=False, yaxis_title="Candidates")
+            st.plotly_chart(fig_dist, use_container_width=True)
 
-    with col_phase2:
-        st.subheader("Ranking Metrics")
-        st.markdown(f"""
-        <div style="background:{C_BGCARD};border:1px solid {C_BORDER};
-                    border-radius:10px;padding:20px;margin-top:8px">
-        <p style="margin:0 0 12px;font-weight:600;color:{C_NAVY}">Composite Score</p>
-        <p style="color:#5D6470;font-size:0.88rem;line-height:1.7;margin:0">
-        <b>S = 0.4 · D̃<sub>M</sub> + 0.3 · cos̃ + 0.3 · P̃</b><br><br>
-        Each metric is min-max normalised to [0, 1].<br><br>
-        <b style="color:{C_BLUE}">Mahalanobis (×0.4)</b><br>
-        Distance to UCOE centroid with Ledoit-Wolf covariance.<br><br>
-        <b style="color:{C_TEAL}">Cosine similarity (×0.3)</b><br>
-        Angle to reference centroid in z-score space.<br><br>
-        <b style="color:{C_GREEN}">Percentile rank (×0.3)</b><br>
-        Feature-wise percentile, averaged over 21 features.
-        </p></div>
-        """, unsafe_allow_html=True)
+        with col_phase2:
+            st.subheader("Ranking Metrics")
+            st.markdown(f"""
+            <div style="background:{C_BGCARD};border:1px solid {C_BORDER};
+                        border-radius:10px;padding:20px;margin-top:8px">
+            <p style="margin:0 0 12px;font-weight:600;color:{C_NAVY}">Composite Score</p>
+            <p style="color:#5D6470;font-size:0.88rem;line-height:1.7;margin:0">
+            <b>S = 0.4 · D̃<sub>M</sub> + 0.3 · cos̃ + 0.3 · P̃</b><br><br>
+            Each metric is min-max normalised to [0, 1].<br><br>
+            <b style="color:{C_BLUE}">Mahalanobis (×0.4)</b><br>
+            Distance to UCOE centroid with Ledoit-Wolf covariance.<br><br>
+            <b style="color:{C_TEAL}">Cosine similarity (×0.3)</b><br>
+            Angle to reference centroid in z-score space.<br><br>
+            <b style="color:{C_GREEN}">Percentile rank (×0.3)</b><br>
+            Feature-wise percentile, averaged over 21 features.
+            </p></div>
+            """, unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
