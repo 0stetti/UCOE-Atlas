@@ -459,6 +459,11 @@ _PAGES = ["Overview", "Candidate Explorer", "Candidate Detail",
           "PCA Explorer", "Validation & Robustness",
           "Methods & Glossary", "Downloads", "About"]
 
+# Navigation requests from buttons (set before radio renders)
+if "_nav_request" in st.session_state:
+    st.session_state["page"] = st.session_state["_nav_request"]
+    del st.session_state["_nav_request"]
+
 if "page" not in st.session_state:
     st.session_state["page"] = "Overview"
 
@@ -567,7 +572,7 @@ if page == "Overview":
             P_AQUA,
         ), unsafe_allow_html=True)
         if st.button("Open Candidate Explorer →", key="nav_explorer", use_container_width=True):
-            st.session_state.page = "Candidate Explorer"
+            st.session_state["_nav_request"] = "Candidate Explorer"
             st.rerun()
     with n2:
         st.markdown(nav_card(
@@ -577,7 +582,7 @@ if page == "Overview":
             P_SKY,
         ), unsafe_allow_html=True)
         if st.button("Open Candidate Detail →", key="nav_detail", use_container_width=True):
-            st.session_state.page = "Candidate Detail"
+            st.session_state["_nav_request"] = "Candidate Detail"
             st.rerun()
     with n3:
         st.markdown(nav_card(
@@ -587,7 +592,7 @@ if page == "Overview":
             P_MINT,
         ), unsafe_allow_html=True)
         if st.button("Open Methods →", key="nav_methods", use_container_width=True):
-            st.session_state.page = "Methods & Glossary"
+            st.session_state["_nav_request"] = "Methods & Glossary"
             st.rerun()
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
