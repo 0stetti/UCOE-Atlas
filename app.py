@@ -888,10 +888,18 @@ elif page == "Candidate Detail":
         f"<span style='background:{P_BG_SUB};border:1px solid {P_RULE};border-radius:4px;"
         f"padding:3px 10px;font-size:0.78rem;color:{P_SLATE}'>"
         f"Inter-TSS {cand['inter_tss_distance']:,} bp</span>"
-        f"<span style='background:{P_BG_SUB};border:1px solid {P_RULE};border-radius:4px;"
-        f"padding:3px 10px;font-size:0.78rem;color:{P_SLATE}'>"
-        f"{cand.get('pair_type','N/A').replace('_',' ')}</span>"
-        f"</div>",
+        + (
+            f"<span title='Gene on (−) strand has the smaller TSS; both genes open outward "
+            f"from the shared promoter — the canonical UCOE architecture.'"
+            f"style='background:{P_BG_SUB};border:1px solid {P_RULE};border-radius:4px;"
+            f"padding:3px 10px;font-size:0.78rem;color:{P_SLATE};cursor:help'>←→ divergent classic</span>"
+            if cand.get('pair_type') == 'divergent_classic' else
+            f"<span title='Gene on (+) strand has the smaller TSS; gene bodies point toward "
+            f"each other (→←), potentially generating antisense transcripts in the shared interval.'"
+            f"style='background:{P_BG_SUB};border:1px solid {P_RULE};border-radius:4px;"
+            f"padding:3px 10px;font-size:0.78rem;color:{P_SLATE};cursor:help'>→← divergent overlapping</span>"
+        )
+        + f"</div>",
         unsafe_allow_html=True,
     )
 
