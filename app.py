@@ -1308,15 +1308,7 @@ elif page == "Candidate Detail":
         row_positions = [panel_tops[i] - h_avail * row_h[i] / 2
                          for i in range(n_rows)]
 
-        # Panel letter: top-left corner of each panel, above y-axis labels
-        for i, letter in enumerate(panel_letters[:n_rows]):
-            fig_ucsc.add_annotation(
-                x=-0.04, y=panel_tops[i] - 0.005,
-                xref="paper", yref="paper",
-                text=f"<b>{letter}</b>",
-                showarrow=False, font=dict(size=13, color=P_INK),
-                xanchor="right", yanchor="top",
-            )
+        # Panel letters removed — cleaner look
 
         # Per-panel legend annotations (right side, one item per line)
         LX     = 1.02   # x position in paper coords (just right of plot)
