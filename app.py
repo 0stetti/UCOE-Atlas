@@ -878,11 +878,20 @@ elif page == "Candidate Detail":
         f"<div style='margin-bottom:4px'>{badges}</div>"
         f"<h1 style='font-size:1.7rem;font-weight:700;color:{P_INK};"
         f"letter-spacing:-0.02em;margin-bottom:2px'>{cand['label']}</h1>"
-        f"<p style='color:{P_SLATE};font-size:0.9rem;margin-top:0'>"
-        f"{cand['chrom']}:{cand['start']:,}–{cand['end']:,} &nbsp;·&nbsp; "
-        f"{cand['length']:,} bp &nbsp;·&nbsp; "
-        f"Inter-TSS {cand['inter_tss_distance']:,} bp &nbsp;·&nbsp; "
-        f"Type: {cand.get('pair_type','N/A')}</p>",
+        f"<div style='display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;margin-bottom:2px'>"
+        f"<span style='background:{P_BG_SUB};border:1px solid {P_RULE};border-radius:4px;"
+        f"padding:3px 10px;font-size:0.78rem;color:{P_SLATE};font-family:monospace'>"
+        f"{cand['chrom']}:{cand['start']:,}–{cand['end']:,}</span>"
+        f"<span style='background:{P_BG_SUB};border:1px solid {P_RULE};border-radius:4px;"
+        f"padding:3px 10px;font-size:0.78rem;color:{P_SLATE}'>"
+        f"{cand['length']:,} bp</span>"
+        f"<span style='background:{P_BG_SUB};border:1px solid {P_RULE};border-radius:4px;"
+        f"padding:3px 10px;font-size:0.78rem;color:{P_SLATE}'>"
+        f"Inter-TSS {cand['inter_tss_distance']:,} bp</span>"
+        f"<span style='background:{P_BG_SUB};border:1px solid {P_RULE};border-radius:4px;"
+        f"padding:3px 10px;font-size:0.78rem;color:{P_SLATE}'>"
+        f"{cand.get('pair_type','N/A').replace('_',' ')}</span>"
+        f"</div>",
         unsafe_allow_html=True,
     )
 
