@@ -1388,24 +1388,38 @@ elif page == "Candidate Detail":
         _chrom     = cand["chrom"]
         _chrom_len = _CHROM_SIZES.get(_chrom, 200_000_000)
         _mid       = (int(cand["start"]) + int(cand["end"])) / 2
-        _locus_px  = int(_mid / _chrom_len * 900)   # SVG units (0–900)
-        _locus_w_px = max(5, int((int(cand["end"]) - int(cand["start"])) / _chrom_len * 900))
-        _cen_x     = int(_CEN_PCT.get(_chrom, 40) / 100 * 900)
-        _cw        = 18   # centromere half-width in SVG units
-        # SVG: viewBox 0 0 900 26, chromosome bar from x=0 to x=900, h=12, y=7
+        # SVG coordinate system: viewBox 0 0 900 28
+        # chromosome body: y=8 to y=20 (height=12), center y=14
+        _W, _T, _B, _CY = 900, 8, 20, 14   # width, top, bottom, center-y
+        _R = 6                               # rounded end radius
+        _lx  = int(_mid / _chrom_len * _W)
+        _lw  = max(4, int((int(cand["end"]) - int(cand["start"])) / _chrom_len * _W))
+        _cx  = int(_CEN_PCT.get(_chrom, 40) / 100 * _W)  # centromere center x
+        _cw  = 16   # centromere half-width
+        _ct  = _T + 4   # constricted top y (4px inward)
+        _cb  = _B - 4   # constricted bottom y
+        # Single continuous path: rounded ends + smooth bezier constriction
+        _d = (
+            f"M 0,{_CY} "
+            f"Q 0,{_T} {_R},{_T} "
+            f"L {_cx-_cw},{_T} "
+            f"Q {_cx},{_ct} {_cx+_cw},{_T} "
+            f"L {_W-_R},{_T} "
+            f"Q {_W},{_T} {_W},{_CY} "
+            f"Q {_W},{_B} {_W-_R},{_B} "
+            f"L {_cx+_cw},{_B} "
+            f"Q {_cx},{_cb} {_cx-_cw},{_B} "
+            f"L {_R},{_B} "
+            f"Q 0,{_B} 0,{_CY} Z"
+        )
         _svg = (
-            f'<svg viewBox="0 0 900 26" xmlns="http://www.w3.org/2000/svg" '
-            f'style="width:100%;height:26px;display:block;overflow:visible">'
-            # p arm (left, rounded left end)
-            f'<rect x="0" y="7" width="{_cen_x - _cw}" height="12" rx="6" fill="{P_GRID}"/>'
-            # q arm (right, rounded right end)
-            f'<rect x="{_cen_x + _cw}" y="7" width="{900 - _cen_x - _cw}" height="12" rx="6" fill="{P_GRID}"/>'
-            # centromere — hourglass shape (two triangles)
-            f'<polygon points="{_cen_x-_cw},7 {_cen_x},13 {_cen_x+_cw},7 '
-            f'{_cen_x+_cw},19 {_cen_x},13 {_cen_x-_cw},19" fill="{P_RULE}"/>'
-            # locus marker
-            f'<rect x="{_locus_px - _locus_w_px//2}" y="4" width="{_locus_w_px}" height="18" '
-            f'rx="2" fill="{P_AQUA}" opacity="0.92"/>'
+            f'<svg viewBox="0 0 {_W} 28" xmlns="http://www.w3.org/2000/svg" '
+            f'style="width:100%;height:28px;display:block">'
+            f'<path d="{_d}" fill="{P_GRID}"/>'
+            f'<rect x="{_cx-_cw}" y="{_ct}" width="{2*_cw}" height="{_cb-_ct}" '
+            f'fill="{P_RULE}" opacity="0.7"/>'
+            f'<rect x="{max(2,_lx-_lw//2)}" y="5" width="{_lw}" height="18" '
+            f'rx="2" fill="{P_AQUA}" opacity="0.9"/>'
             f'</svg>'
         )
         st.markdown(
