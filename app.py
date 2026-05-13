@@ -460,16 +460,14 @@ _PAGES = ["Overview", "Candidate Explorer", "Candidate Detail",
           "Methods & Glossary", "Downloads", "About"]
 
 if "page" not in st.session_state:
-    st.session_state.page = "Overview"
+    st.session_state["page"] = "Overview"
 
 page = st.sidebar.radio(
     "Pages",
     _PAGES,
-    index=_PAGES.index(st.session_state.get("page", "Overview")),
-    key="_page_radio",
+    key="page",
     label_visibility="collapsed",
 )
-st.session_state.page = page
 
 st.sidebar.markdown(
     f"<div style='margin-top:28px;padding-top:14px;border-top:1px solid {P_RULE}'>"
@@ -656,52 +654,6 @@ if page == "Overview":
         fig_funnel.update_xaxes(range=[0, 900], showticklabels=False, showgrid=False, showline=False)
         fig_funnel.update_yaxes(autorange="reversed", tickfont=dict(size=12, color=P_SLATE))
         st.plotly_chart(fig_funnel, use_container_width=True)
-
-        st.markdown("---")
-
-        col_hist, col_phase2 = st.columns([2, 1])
-
-        with col_hist:
-            st.subheader("Phase II — Composite Score Distribution")
-            fig_dist = px.histogram(
-                scored, x="composite_score", nbins=50,
-                color_discrete_sequence=[C_BLUE],
-                labels={"composite_score": "Composite Score"},
-            )
-            for _, row in scored[scored["known_ucoe"] != ""].iterrows():
-                fig_dist.add_vline(
-                    x=row["composite_score"], line_dash="dash", line_color=C_RED, line_width=2,
-                    annotation_text=f"<b>{row['known_ucoe']}</b>",
-                    annotation_position="top", annotation_font=dict(size=11, color=C_RED),
-                )
-            top20_thresh = scored.nsmallest(20, "composite_rank")["composite_score"].min()
-            fig_dist.add_vrect(
-                x0=top20_thresh, x1=scored["composite_score"].max() + 0.01,
-                fillcolor=C_AMBER, opacity=0.07, line_width=0,
-                annotation_text="Top 20", annotation_position="top left",
-                annotation_font=dict(size=11, color=C_AMBER),
-            )
-            apply_template(fig_dist, height=320)
-            fig_dist.update_layout(showlegend=False, yaxis_title="Candidates")
-            st.plotly_chart(fig_dist, use_container_width=True)
-
-        with col_phase2:
-            st.subheader("Ranking Metrics")
-            st.markdown(f"""
-            <div style="background:{C_BGCARD};border:1px solid {C_BORDER};
-                        border-radius:10px;padding:20px;margin-top:8px">
-            <p style="margin:0 0 12px;font-weight:600;color:{C_NAVY}">Composite Score</p>
-            <p style="color:#5D6470;font-size:0.88rem;line-height:1.7;margin:0">
-            <b>S = 0.4 · D̃<sub>M</sub> + 0.3 · cos̃ + 0.3 · P̃</b><br><br>
-            Each metric is min-max normalised to [0, 1].<br><br>
-            <b style="color:{C_BLUE}">Mahalanobis (×0.4)</b><br>
-            Distance to UCOE centroid with Ledoit-Wolf covariance.<br><br>
-            <b style="color:{C_TEAL}">Cosine similarity (×0.3)</b><br>
-            Angle to reference centroid in z-score space.<br><br>
-            <b style="color:{C_GREEN}">Percentile rank (×0.3)</b><br>
-            Feature-wise percentile, averaged over 21 features.
-            </p></div>
-            """, unsafe_allow_html=True)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
