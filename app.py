@@ -1538,10 +1538,22 @@ elif page == "Candidate Detail":
                     bar_colors_dn = [P_ROSE if d in ww_set else P_AQUA if d in ss_set
                                      else P_GHOST for d in dinuc_labels]
                     fig_dn = go.Figure()
+                    # Real bars (mixed colors per dinucleotide class)
                     fig_dn.add_trace(go.Bar(
-                        x=dinuc_labels, y=vals_this, name="This candidate",
+                        x=dinuc_labels, y=vals_this,
                         marker_color=bar_colors_dn, opacity=0.80,
+                        showlegend=False,
                     ))
+                    # Legend-only dummy traces
+                    for _leg_name, _leg_col in [
+                        ("WW (AA·AT·TA·TT)", P_ROSE),
+                        ("SS (CC·CG·GC·GG)", P_AQUA),
+                        ("Other",            P_GHOST),
+                    ]:
+                        fig_dn.add_trace(go.Bar(
+                            x=[None], y=[None], name=_leg_name,
+                            marker_color=_leg_col, opacity=0.80,
+                        ))
                     if struct_ctrl is not None:
                         ctrl_meds = [struct_ctrl[c].median() for c in dinuc_cols]
                         fig_dn.add_trace(go.Scatter(
