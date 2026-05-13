@@ -448,7 +448,7 @@ FEATURE_LABELS = {
 # SIDEBAR
 # ══════════════════════════════════════════════════════════════════════════════
 st.sidebar.markdown(
-    f"<div style='padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid {P_RULE}'>"
+    f"<div style='padding-bottom:12px;margin-bottom:12px;border-bottom:1px solid {P_RULE}'>"
     f"<div style='font-size:1.15rem;font-weight:700;color:{P_INK};letter-spacing:-0.01em'>UCOE Atlas</div>"
     f"<div style='font-size:0.72rem;color:{P_GHOST};margin-top:2px'>Human Genome · GRCh38</div>"
     f"</div>",
@@ -459,7 +459,7 @@ _PAGES = ["Overview", "Candidate Explorer", "Candidate Detail",
           "PCA Explorer", "Validation & Robustness",
           "Methods & Glossary", "Downloads", "About"]
 
-# Navigation requests from buttons (set before radio renders)
+# Navigation requests from buttons (applied before radio renders)
 if "_nav_request" in st.session_state:
     st.session_state["page"] = st.session_state["_nav_request"]
     del st.session_state["_nav_request"]
@@ -474,17 +474,69 @@ page = st.sidebar.radio(
     label_visibility="collapsed",
 )
 
+# ── Quick Search ──────────────────────────────────────────────────────────────
 st.sidebar.markdown(
-    f"<div style='margin-top:28px;padding-top:14px;border-top:1px solid {P_RULE}'>"
+    f"<div style='margin-top:18px;margin-bottom:6px;font-size:0.68rem;font-weight:600;"
+    f"color:{P_GHOST};letter-spacing:0.07em;text-transform:uppercase'>Quick Search</div>",
+    unsafe_allow_html=True,
+)
+_search = st.sidebar.text_input(
+    "Search gene", placeholder="e.g. SMIM27, GABPA …",
+    label_visibility="collapsed", key="_sidebar_search",
+)
+if _search:
+    _hits = scored_full[
+        scored_full["gene1"].str.contains(_search, case=False, na=False) |
+        scored_full["gene2"].str.contains(_search, case=False, na=False)
+    ].nsmallest(5, "composite_rank")
+    if len(_hits):
+        for _, _h in _hits.iterrows():
+            _rank = int(_h["composite_rank"])
+            _btn_label = f"#{_rank}  {_h['label']}  ({_h['composite_score']:.3f})"
+            if st.sidebar.button(_btn_label, key=f"_srch_{_rank}", use_container_width=True):
+                st.session_state["_detail_rank"] = _rank
+                st.session_state["_nav_request"] = "Candidate Detail"
+                st.rerun()
+    else:
+        st.sidebar.caption("No matches found.")
+
+# ── Top Candidates ─────────────────────────────────────────────────────────────
+st.sidebar.markdown(
+    f"<div style='margin-top:16px;margin-bottom:6px;font-size:0.68rem;font-weight:600;"
+    f"color:{P_GHOST};letter-spacing:0.07em;text-transform:uppercase'>Top Candidates</div>",
+    unsafe_allow_html=True,
+)
+_top5 = scored_full.nsmallest(5, "composite_rank")
+for _, _r in _top5.iterrows():
+    _rank = int(_r["composite_rank"])
+    _score = f"{_r['composite_score']:.3f}"
+    _lbl   = _r["label"]
+    _btn   = f"#{_rank}  {_lbl}  {_score}"
+    if st.sidebar.button(_btn, key=f"_top5_{_rank}", use_container_width=True):
+        st.session_state["_detail_rank"] = _rank
+        st.session_state["_nav_request"] = "Candidate Detail"
+        st.rerun()
+
+# ── Reference UCOEs ────────────────────────────────────────────────────────────
+st.sidebar.markdown(
+    f"<div style='margin-top:16px;padding-top:14px;border-top:1px solid {P_RULE}'>"
     f"<div style='font-size:0.68rem;font-weight:600;color:{P_GHOST};letter-spacing:0.07em;"
-    f"text-transform:uppercase;margin-bottom:8px'>Reference UCOEs</div>"
-    f"<div style='font-size:0.8rem;color:{P_SLATE};line-height:2.1'>"
+    f"text-transform:uppercase;margin-bottom:6px'>Reference UCOEs</div>"
+    f"<div style='font-size:0.8rem;color:{P_SLATE};line-height:2.0'>"
     f"A2UCOE &nbsp;<span style='color:{P_GHOST}'>rank 27</span><br>"
     f"TBP/PSMB1 &nbsp;<span style='color:{P_GHOST}'>rank 121</span><br>"
     f"SRF-UCOE &nbsp;<span style='color:{P_GHOST}'>rank 188</span>"
     f"</div>"
-    f"<div style='margin-top:18px;font-size:0.71rem;color:{P_GHOST};line-height:1.7'>"
-    f"E.R. Ostetti · A.M. Moro<br>T.M. Manieri<br>USP / Instituto Butantan"
+    f"</div>",
+    unsafe_allow_html=True,
+)
+
+# ── Authors (bottom) ───────────────────────────────────────────────────────────
+st.sidebar.markdown(
+    f"<div style='margin-top:24px;padding-top:12px;border-top:1px solid {P_RULE}'>"
+    f"<div style='font-size:0.70rem;color:{P_GHOST};line-height:1.8'>"
+    f"Elton Ostetti · Ana Moro<br>Tânia Manieri<br>"
+    f"University of São Paulo<br>Butantan Institute"
     f"</div>"
     f"</div>",
     unsafe_allow_html=True,
@@ -786,9 +838,18 @@ elif page == "Candidate Detail":
 
     known_opts  = [o for o in options if "★" in o]
     other_opts  = [o for o in options if "★" not in o]
+    all_opts    = known_opts + other_opts
+
+    # Pre-select candidate requested from sidebar search / top-5
+    if "_detail_rank" in st.session_state:
+        _target = st.session_state.pop("_detail_rank")
+        _match  = next((o for o in all_opts if o.startswith(f"#{_target} ")), None)
+        if _match:
+            st.session_state["detail_select"] = _match
+
     sel_col, _ = st.columns([2, 3])
     with sel_col:
-        selected = st.selectbox("Candidate", known_opts + other_opts,
+        selected = st.selectbox("Candidate", all_opts, key="detail_select",
                                 help="★ Known UCOEs listed first. · stable = 100% weight-stable.")
 
     rank = int(selected.split("#")[1].split(" ")[0])
