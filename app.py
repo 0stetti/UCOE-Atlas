@@ -1368,6 +1368,38 @@ elif page == "Candidate Detail":
             d_legend.append((P_MINT, "■  CpG island (GC≥50%, o/e≥0.6)"))
         _rleg(fig_ucsc, d_legend, pidx)
 
+        # ── Chromosome ideogram ───────────────────────────────────────────────
+        _CHROM_SIZES = {
+            "chr1":248956422,"chr2":242193529,"chr3":198295559,"chr4":190214555,
+            "chr5":181538259,"chr6":170805979,"chr7":159345973,"chr8":145138636,
+            "chr9":138394717,"chr10":133797422,"chr11":135086622,"chr12":133275309,
+            "chr13":114364328,"chr14":107043718,"chr15":101991189,"chr16":90338345,
+            "chr17":83257441,"chr18":80373285,"chr19":58617616,"chr20":64444167,
+            "chr21":46709983,"chr22":50818468,"chrX":156040895,"chrY":57227415,
+        }
+        _chrom_len = _CHROM_SIZES.get(cand["chrom"], 200_000_000)
+        _mid       = (int(cand["start"]) + int(cand["end"])) / 2
+        _pct       = _mid / _chrom_len * 100
+        _locus_w   = max(0.4, (int(cand["end"]) - int(cand["start"])) / _chrom_len * 100)
+        st.markdown(
+            f"<div style='display:flex;align-items:center;gap:12px;margin-bottom:4px;"
+            f"padding:8px 12px;background:{P_BG_SUB};border:1px solid {P_RULE};"
+            f"border-radius:4px;'>"
+            f"<span style='font-size:0.75rem;font-weight:600;color:{P_SLATE};"
+            f"white-space:nowrap;min-width:36px'>{cand['chrom']}</span>"
+            f"<div style='flex:1;position:relative;height:10px;'>"
+            f"<div style='position:absolute;inset:0;background:{P_GRID};"
+            f"border-radius:10px'></div>"
+            f"<div style='position:absolute;top:0;bottom:0;"
+            f"left:{_pct - _locus_w/2:.2f}%;width:max({_locus_w:.2f}%,3px);"
+            f"background:{P_AQUA};border-radius:3px;opacity:0.9'></div>"
+            f"</div>"
+            f"<span style='font-size:0.72rem;color:{P_GHOST};white-space:nowrap'>"
+            f"{int(_mid/1e6):.0f} Mb / {int(_chrom_len/1e6):.0f} Mb</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
         st.plotly_chart(fig_ucsc, use_container_width=True)
 
         # ── ETS summary table ─────────────────────────────────────────────────
