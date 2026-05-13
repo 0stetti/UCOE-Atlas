@@ -1108,15 +1108,19 @@ elif page == "Candidate Detail":
                 y0=gy - 0.18, y1=gy + 0.18,
                 line=dict(color=gc, width=3.5), row=cur, col=1,
             )
-            # Arrowhead at the far (3′) end
+            # Arrowhead at the far (3′) end — clean proportional triangle marker
             tip_x = gx1 if strand == "+" else gx0
-            off   = length * 0.013
-            fig_ucsc.add_annotation(
-                x=tip_x + (off if strand == "+" else -off), y=gy,
-                ax=tip_x, ay=gy,
-                xref="x", yref="y", axref="x", ayref="y",
-                text="", showarrow=True,
-                arrowhead=2, arrowsize=1.6, arrowwidth=3, arrowcolor=gc,
+            fig_ucsc.add_trace(
+                go.Scatter(
+                    x=[tip_x], y=[gy],
+                    mode="markers",
+                    marker=dict(
+                        symbol="triangle-right" if strand == "+" else "triangle-left",
+                        size=13, color=gc,
+                        line=dict(width=0),
+                    ),
+                    showlegend=False, hoverinfo="skip",
+                ),
                 row=cur, col=1,
             )
 
