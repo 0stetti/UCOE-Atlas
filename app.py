@@ -1078,15 +1078,11 @@ elif page == "Candidate Detail":
             line=dict(color=P_RULE, width=1.5), row=cur, col=1,
         )
 
-        # TSS vertical marks (shared between both genes)
-        for tss_p in [tss1, tss2]:
+        # TSS vertical guides — colored by gene, no label
+        for tss_p, gc in [(tss1, P_AQUA), (tss2, P_ROSE)]:
             fig_ucsc.add_shape(
                 type="line", x0=tss_p, x1=tss_p, y0=-1.0, y1=1.0,
-                line=dict(color=P_GHOST, width=0.8, dash="dot"), row=cur, col=1,
-            )
-            fig_ucsc.add_annotation(
-                x=tss_p, y=1.06, text="TSS", showarrow=False,
-                font=dict(size=7, color=P_GHOST), row=cur, col=1,
+                line=dict(color=gc, width=0.8, dash="dot"), row=cur, col=1,
             )
 
         # Gene body bars + arrowhead at 3′ end
