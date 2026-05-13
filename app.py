@@ -1368,7 +1368,7 @@ elif page == "Candidate Detail":
             d_legend.append((P_MINT, "■  CpG island (GC≥50%, o/e≥0.6)"))
         _rleg(fig_ucsc, d_legend, pidx)
 
-        # ── Chromosome ideogram ───────────────────────────────────────────────
+        # ── Chromosome ideogram (SVG) ─────────────────────────────────────────
         _CHROM_SIZES = {
             "chr1":248956422,"chr2":242193529,"chr3":198295559,"chr4":190214555,
             "chr5":181538259,"chr6":170805979,"chr7":159345973,"chr8":145138636,
@@ -1377,23 +1377,44 @@ elif page == "Candidate Detail":
             "chr17":83257441,"chr18":80373285,"chr19":58617616,"chr20":64444167,
             "chr21":46709983,"chr22":50818468,"chrX":156040895,"chrY":57227415,
         }
-        _chrom_len = _CHROM_SIZES.get(cand["chrom"], 200_000_000)
+        # Centromere midpoint as % of chromosome length (hg38 approximate)
+        _CEN_PCT = {
+            "chr1":48.5,"chr2":38.0,"chr3":46.5,"chr4":25.5,"chr5":27.5,
+            "chr6":37.0,"chr7":39.5,"chr8":32.0,"chr9":35.5,"chr10":30.5,
+            "chr11":40.5,"chr12":37.0,"chr13":17.5,"chr14":17.5,"chr15":20.5,
+            "chr16":37.5,"chr17":31.0,"chr18":20.0,"chr19":45.0,"chr20":44.5,
+            "chr21":28.0,"chr22":35.0,"chrX":39.5,"chrY":20.0,
+        }
+        _chrom     = cand["chrom"]
+        _chrom_len = _CHROM_SIZES.get(_chrom, 200_000_000)
         _mid       = (int(cand["start"]) + int(cand["end"])) / 2
-        _pct       = _mid / _chrom_len * 100
-        _locus_w   = max(0.4, (int(cand["end"]) - int(cand["start"])) / _chrom_len * 100)
+        _locus_px  = int(_mid / _chrom_len * 900)   # SVG units (0–900)
+        _locus_w_px = max(5, int((int(cand["end"]) - int(cand["start"])) / _chrom_len * 900))
+        _cen_x     = int(_CEN_PCT.get(_chrom, 40) / 100 * 900)
+        _cw        = 18   # centromere half-width in SVG units
+        # SVG: viewBox 0 0 900 26, chromosome bar from x=0 to x=900, h=12, y=7
+        _svg = (
+            f'<svg viewBox="0 0 900 26" xmlns="http://www.w3.org/2000/svg" '
+            f'style="width:100%;height:26px;display:block;overflow:visible">'
+            # p arm (left, rounded left end)
+            f'<rect x="0" y="7" width="{_cen_x - _cw}" height="12" rx="6" fill="{P_GRID}"/>'
+            # q arm (right, rounded right end)
+            f'<rect x="{_cen_x + _cw}" y="7" width="{900 - _cen_x - _cw}" height="12" rx="6" fill="{P_GRID}"/>'
+            # centromere — hourglass shape (two triangles)
+            f'<polygon points="{_cen_x-_cw},7 {_cen_x},13 {_cen_x+_cw},7 '
+            f'{_cen_x+_cw},19 {_cen_x},13 {_cen_x-_cw},19" fill="{P_RULE}"/>'
+            # locus marker
+            f'<rect x="{_locus_px - _locus_w_px//2}" y="4" width="{_locus_w_px}" height="18" '
+            f'rx="2" fill="{P_AQUA}" opacity="0.92"/>'
+            f'</svg>'
+        )
         st.markdown(
-            f"<div style='display:flex;align-items:center;gap:12px;margin-bottom:4px;"
-            f"padding:8px 12px;background:{P_BG_SUB};border:1px solid {P_RULE};"
-            f"border-radius:4px;'>"
-            f"<span style='font-size:0.75rem;font-weight:600;color:{P_SLATE};"
-            f"white-space:nowrap;min-width:36px'>{cand['chrom']}</span>"
-            f"<div style='flex:1;position:relative;height:10px;'>"
-            f"<div style='position:absolute;inset:0;background:{P_GRID};"
-            f"border-radius:10px'></div>"
-            f"<div style='position:absolute;top:0;bottom:0;"
-            f"left:{_pct - _locus_w/2:.2f}%;width:max({_locus_w:.2f}%,3px);"
-            f"background:{P_AQUA};border-radius:3px;opacity:0.9'></div>"
-            f"</div>"
+            f"<div style='display:flex;align-items:center;gap:14px;margin-bottom:6px;"
+            f"padding:8px 14px;background:{P_BG_SUB};border:1px solid {P_RULE};"
+            f"border-radius:4px'>"
+            f"<span style='font-size:0.78rem;font-weight:600;color:{P_SLATE};"
+            f"white-space:nowrap;min-width:38px'>{_chrom}</span>"
+            f"<div style='flex:1'>{_svg}</div>"
             f"<span style='font-size:0.72rem;color:{P_GHOST};white-space:nowrap'>"
             f"{int(_mid/1e6):.0f} Mb / {int(_chrom_len/1e6):.0f} Mb</span>"
             f"</div>",
