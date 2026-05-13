@@ -1330,12 +1330,17 @@ elif page == "Candidate Detail":
         pidx = 0
 
         # Panel A — gene structure
-        _rleg(fig_ucsc, [
-            (P_AQUA,   f"■  {cand['gene1']} (+)"),
-            (P_ROSE,   f"■  {cand['gene2']} (−)"),
-            (P_PEACH,  "▼  ETS motif (CGGAA[GA])"),
-            (P_GHOST,  "╌  ETS position"),
-        ], pidx); pidx += 1
+        _panelA_legend = [
+            (P_AQUA,  f"■  {cand['gene1']} (+)"),
+            (P_ROSE,  f"■  {cand['gene2']} (−)"),
+            (P_PEACH, "▼  ETS motif (CGGAA[GA])"),
+            (P_GHOST, "╌  ETS position"),
+        ]
+        if nfr_regions:
+            _panelA_legend.append(
+                (P_AQUA, "░  Open chromatin region (NFR)" if has_dnase else "░  TSS ±200 bp region")
+            )
+        _rleg(fig_ucsc, _panelA_legend, pidx); pidx += 1
 
         # Panel B — DNase / NFR
         if has_dnase:
