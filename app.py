@@ -30,12 +30,12 @@ st.set_page_config(
 # DESIGN SYSTEM — colors, CSS, Plotly template
 # ══════════════════════════════════════════════════════════════════════════════
 # ── Magazine palette (mirrors magazine_style.py) ─────────────────────────────
-P_AQUA     = "#6FC3C8"   # primary data color
-P_ROSE     = "#F29AA0"   # secondary
-P_PEACH    = "#F6C47A"   # tertiary / accent
-P_SKY      = "#88BFEB"   # quaternary
-P_LAVENDER = "#C0A8DC"   # quinary
-P_MINT     = "#8FCFA8"   # senary
+P_AQUA     = "#2B8CBE"   # deep scientific blue (primary)
+P_ROSE     = "#D4633A"   # terracotta / burnt orange (secondary)
+P_PEACH    = "#E8A817"   # golden amber (accent)
+P_SKY      = "#63B7D0"   # sky blue (quaternary)
+P_LAVENDER = "#9B81C2"   # medium violet (quinary)
+P_MINT     = "#3EA882"   # forest green (senary)
 P_INK      = "#1C1E26"   # near-black — titles
 P_SLATE    = "#5D6470"   # mid-grey — body / labels
 P_GHOST    = "#9CA3AF"   # light grey — captions
@@ -58,7 +58,7 @@ C_BGCARD = P_BG
 C_BORDER = P_RULE
 
 PALETTE = [P_AQUA, P_ROSE, P_PEACH, P_SKY, P_LAVENDER, P_MINT,
-           "#5BADB3", "#E8868C", "#E3AD5E", "#6FAAD8", "#A88EC8", "#72B88E"]
+           "#1F6E96", "#B84D28", "#C48A10", "#4A99B8", "#7A63A0", "#2D7A60"]
 
 st.markdown("""
 <style>
@@ -123,7 +123,7 @@ h3 { color: #5D6470 !important; font-weight: 600 !important; }
 .stTabs [aria-selected="true"] {
     color: #1C1E26 !important;
     background: #F8F9FB !important;
-    border-bottom: 2px solid #6FC3C8 !important;
+    border-bottom: 2px solid #2B8CBE !important;
     font-weight: 600 !important;
 }
 
@@ -145,7 +145,7 @@ h3 { color: #5D6470 !important; font-weight: 600 !important; }
 
 /* ── Buttons ── */
 .stDownloadButton button {
-    background: #6FC3C8 !important;
+    background: #2B8CBE !important;
     color: #1C1E26 !important;
     border-radius: 4px !important;
     font-weight: 600 !important;
@@ -675,7 +675,7 @@ if page == "Overview":
         filter_steps = [
             ("All bidirectional HKG promoters", 789,  0,   P_AQUA),
             ("+ CpG island overlap ≥ 40%",      692,  97,  P_AQUA),
-            ("+ Active marks ubiquitous ≥ 80%",  647,  45,  "#0277BD"),
+            ("+ Active marks ubiquitous ≥ 80%",  647,  45,  "#1F6E96"),
             ("+ Repressive marks absent ≥ 80%",  645,   2,  P_PEACH),
             ("+ Constitutive hypomethylation",   599,  46,  P_MINT),
         ]
@@ -1032,7 +1032,7 @@ elif page == "Candidate Detail":
         def _shade_ets(fig, ets_all, row):
             for s, e, _, _ in ets_all:
                 fig.add_vrect(x0=s, x1=e,
-                              fillcolor=f"rgba(246,196,122,0.38)", line_width=0,
+                              fillcolor=f"rgba(232,168,23,0.38)", line_width=0,
                               row=row, col=1)
 
         cur = 1   # current row counter
@@ -1048,7 +1048,7 @@ elif page == "Candidate Detail":
         # NFR shading — full panel height so it reads as a region
         for (ns, ne), nfc in zip(
             nfr_regions,
-            ["rgba(111,195,200,0.14)", "rgba(242,154,160,0.14)"]
+            ["rgba(43,140,190,0.14)", "rgba(212,99,58,0.14)"]
         ):
             fig_ucsc.add_shape(
                 type="rect", x0=ns, x1=ne, y0=-1.05, y1=1.05,
@@ -1161,7 +1161,7 @@ elif page == "Candidate Detail":
                         fig_ucsc.add_trace(go.Scatter(
                             x=dnase_pos, y=row_sig, mode="lines",
                             name=cl, showlegend=False,
-                            line=dict(color="rgba(136,191,235,0.20)", width=0.6),
+                            line=dict(color="rgba(99,183,208,0.20)", width=0.6),
                         ), row=cur, col=1)
 
             # Mean signal (solid)
@@ -1169,14 +1169,14 @@ elif page == "Candidate Detail":
                 x=dnase_pos, y=dnase_smooth,
                 mode="lines", name="DNase (mean)",
                 line=dict(color=P_SKY, width=1.2),
-                fill="tozeroy", fillcolor="rgba(136,191,235,0.45)",
+                fill="tozeroy", fillcolor="rgba(99,183,208,0.45)",
             ), row=cur, col=1)
 
             # NFR shading
             for ns, ne in nfr_regions:
                 fig_ucsc.add_vrect(
                     x0=ns, x1=ne, row=cur, col=1,
-                    fillcolor="rgba(246,196,122,0.30)",
+                    fillcolor="rgba(232,168,23,0.30)",
                     layer="below", line_width=0,
                 )
             fig_ucsc.update_yaxes(
@@ -1192,13 +1192,13 @@ elif page == "Candidate Detail":
                 x=pos_full, y=np.maximum(phylop_s, 0),
                 mode="lines", name="Conserved",
                 line=dict(color=P_AQUA, width=0.6),
-                fill="tozeroy", fillcolor="rgba(111,195,200,0.70)",
+                fill="tozeroy", fillcolor="rgba(43,140,190,0.70)",
             ), row=cur, col=1)
             fig_ucsc.add_trace(go.Scatter(
                 x=pos_full, y=np.minimum(phylop_s, 0),
                 mode="lines", name="Accelerated",
                 line=dict(color=P_ROSE, width=0.6),
-                fill="tozeroy", fillcolor="rgba(242,154,160,0.60)",
+                fill="tozeroy", fillcolor="rgba(212,99,58,0.60)",
             ), row=cur, col=1)
             fig_ucsc.add_hline(y=0, line_color=P_GHOST, line_width=0.8,
                                line_dash="dash", row=cur, col=1)
@@ -1215,7 +1215,7 @@ elif page == "Candidate Detail":
                 x=phast_pos, y=phast_s,
                 mode="lines", name="PhastCons",
                 line=dict(color=P_MINT, width=0.8),
-                fill="tozeroy", fillcolor="rgba(143,207,168,0.65)",
+                fill="tozeroy", fillcolor="rgba(62,168,130,0.65)",
             ), row=cur, col=1)
             fig_ucsc.update_yaxes(
                 title_text="PhastCons", title_font=dict(size=9, color=P_SLATE),
@@ -1228,7 +1228,7 @@ elif page == "Candidate Detail":
         fig_ucsc.add_trace(go.Scatter(
             x=seq_pos, y=gc_vals, mode="lines", name="GC %",
             line=dict(color=P_SKY, width=1.8),
-            fill="tozeroy", fillcolor="rgba(136,191,235,0.22)",
+            fill="tozeroy", fillcolor="rgba(99,183,208,0.22)",
         ), row=cur, col=1)
         fig_ucsc.add_hline(y=50, line_color=P_GHOST, line_width=0.7,
                            line_dash="dot", row=cur, col=1)
@@ -1236,15 +1236,15 @@ elif page == "Candidate Detail":
         for isl_s, isl_e in cpg_islands:
             fig_ucsc.add_vrect(
                 x0=isl_s, x1=isl_e,
-                fillcolor="rgba(143,207,168,0.28)",
-                line=dict(color="rgba(143,207,168,0.80)", width=1),
+                fillcolor="rgba(62,168,130,0.28)",
+                line=dict(color="rgba(62,168,130,0.80)", width=1),
                 row=cur, col=1,
             )
         cpg_max    = float(cpg_vals.max()) if cpg_vals.max() > 0 else 1.0
         cpg_scaled = cpg_vals / cpg_max * 95
         fig_ucsc.add_trace(go.Bar(
             x=seq_pos, y=cpg_scaled, name="CpG / window",
-            marker_color="rgba(192,168,220,0.62)", width=1,
+            marker_color="rgba(155,129,194,0.62)", width=1,
         ), row=cur, col=1)
         fig_ucsc.update_yaxes(
             title_text="GC %", title_font=dict(size=9, color=P_SLATE),
@@ -1404,12 +1404,12 @@ elif page == "Candidate Detail":
         fig_radar.add_trace(go.Scatterpolar(
             r=vals_cand + [vals_cand[0]], theta=labels_radar + [labels_radar[0]],
             fill="toself", name=cand["label"],
-            line_color=P_AQUA, fillcolor="rgba(111,195,200,0.19)",
+            line_color=P_AQUA, fillcolor="rgba(43,140,190,0.19)",
         ))
         fig_radar.add_trace(go.Scatterpolar(
             r=vals_ref + [vals_ref[0]], theta=labels_radar + [labels_radar[0]],
             fill="toself", name="UCOE Reference",
-            line_color=P_ROSE, fillcolor="rgba(242,154,160,0.09)", line_dash="dot",
+            line_color=P_ROSE, fillcolor="rgba(212,99,58,0.09)", line_dash="dot",
         ))
         fig_radar.update_layout(
             polar=dict(
@@ -1490,8 +1490,8 @@ elif page == "Candidate Detail":
                 ], 1):
                     cats   = ["This candidate", "UCOE median", "Controls"]
                     values = [val, ref_v, ctrl_v]
-                    _alpha = {"WW": ("rgba(242,154,160,1)", "rgba(242,154,160,0.55)", "rgba(156,163,175,0.55)"),
-                              "SS": ("rgba(111,195,200,1)", "rgba(111,195,200,0.55)", "rgba(156,163,175,0.55)")}
+                    _alpha = {"WW": ("rgba(212,99,58,1)", "rgba(212,99,58,0.55)", "rgba(156,163,175,0.55)"),
+                              "SS": ("rgba(43,140,190,1)", "rgba(43,140,190,0.55)", "rgba(156,163,175,0.55)")}
                     clrs   = list(_alpha[label])
                     fig_bio.add_trace(go.Bar(
                         x=cats, y=values, marker_color=clrs, opacity=0.85,
