@@ -1408,17 +1408,18 @@ elif page == "Candidate Detail":
         _chrom     = cand["chrom"]
         _chrom_len = _CHROM_SIZES.get(_chrom, 200_000_000)
         _mid       = (int(cand["start"]) + int(cand["end"])) / 2
-        # SVG coordinate system: viewBox 0 0 900 28
-        # chromosome body: y=8 to y=20 (height=12), center y=14
-        _W, _T, _B, _CY = 900, 8, 20, 14   # width, top, bottom, center-y
-        _R = 6                               # rounded end radius
-        _lx  = int(_mid / _chrom_len * _W)
-        _lw  = max(4, int((int(cand["end"]) - int(cand["start"])) / _chrom_len * _W))
-        _cx  = int(_CEN_PCT.get(_chrom, 40) / 100 * _W)  # centromere center x
-        _cw  = 16   # centromere half-width
-        _ct  = _T + 4   # constricted top y (4px inward)
-        _cb  = _B - 4   # constricted bottom y
-        # Single continuous path: rounded ends + smooth bezier constriction
+        # SVG coordinate system: viewBox 0 0 900 56
+        # chromosome body: y=8 to y=48 (height=40), center y=28
+        _W, _T, _B, _CY = 900, 8, 48, 28  # width, top, bottom, center-y
+        _R  = 20                            # end radius (semicircle caps)
+        _lx = int(_mid / _chrom_len * _W)
+        _lw = max(5, int((int(cand["end"]) - int(cand["start"])) / _chrom_len * _W))
+        _cx = int(_CEN_PCT.get(_chrom, 40) / 100 * _W)  # centromere center x
+        _cw = 24    # centromere half-width (transition zone)
+        # Constriction: pinch to ±6px around center (85% constriction out of 40px height)
+        _ct = _CY - 6   # constricted top (near center)
+        _cb = _CY + 6   # constricted bottom (near center)
+        # Single continuous SVG path: rounded telomere caps + hourglass centromere
         _d = (
             f"M 0,{_CY} "
             f"Q 0,{_T} {_R},{_T} "
@@ -1432,23 +1433,40 @@ elif page == "Candidate Detail":
             f"L {_R},{_B} "
             f"Q 0,{_B} 0,{_CY} Z"
         )
+        # p arm is left of centromere (lighter), q arm is right (base color)
         _svg = (
-            f'<svg viewBox="0 0 {_W} 28" xmlns="http://www.w3.org/2000/svg" '
-            f'style="width:100%;height:28px;display:block">'
-            f'<path d="{_d}" fill="{P_GRID}"/>'
-            f'<rect x="{_cx-_cw}" y="{_ct}" width="{2*_cw}" height="{_cb-_ct}" '
-            f'fill="{P_RULE}" opacity="0.7"/>'
-            f'<rect x="{max(2,_lx-_lw//2)}" y="5" width="{_lw}" height="18" '
-            f'rx="2" fill="{P_AQUA}" opacity="0.9"/>'
+            f'<svg viewBox="0 0 {_W} 56" xmlns="http://www.w3.org/2000/svg" '
+            f'style="width:100%;height:40px;display:block">'
+            # Defs: clip to chromosome shape + gradient
+            f'<defs>'
+            f'<clipPath id="chrom-clip"><path d="{_d}"/></clipPath>'
+            f'<linearGradient id="parm" x1="0" y1="0" x2="0" y2="1">'
+            f'<stop offset="0%" stop-color="#C8CDD4"/>'
+            f'<stop offset="100%" stop-color="#B0B6BF"/>'
+            f'</linearGradient>'
+            f'<linearGradient id="qarm" x1="0" y1="0" x2="0" y2="1">'
+            f'<stop offset="0%" stop-color="#B8BEC6"/>'
+            f'<stop offset="100%" stop-color="#A0A7B0"/>'
+            f'</linearGradient>'
+            f'</defs>'
+            # q arm (full body background, darker)
+            f'<path d="{_d}" fill="url(#qarm)"/>'
+            # p arm overlay (left of centromere, lighter)
+            f'<rect x="0" y="0" width="{_cx}" height="56" fill="url(#parm)" clip-path="url(#chrom-clip)"/>'
+            # Centromere constriction: dark waist band
+            f'<rect x="{_cx-_cw}" y="0" width="{2*_cw}" height="56" '
+            f'fill="#8E949D" clip-path="url(#chrom-clip)"/>'
+            # Locus marker: bright aqua triangle below chromosome
+            f'<polygon points="{_lx},{_B+2} {_lx-5},{_B+10} {_lx+5},{_B+10}" fill="{P_AQUA}"/>'
             f'</svg>'
         )
         st.markdown(
             f"<div style='display:flex;align-items:center;gap:14px;margin-bottom:6px;"
-            f"padding:8px 14px;background:{P_BG_SUB};border:1px solid {P_RULE};"
-            f"border-radius:4px'>"
+            f"padding:10px 14px;background:{P_BG_SUB};border:1px solid {P_RULE};"
+            f"border-radius:4px;overflow:visible'>"
             f"<span style='font-size:0.78rem;font-weight:600;color:{P_SLATE};"
             f"white-space:nowrap;min-width:38px'>{_chrom}</span>"
-            f"<div style='flex:1'>{_svg}</div>"
+            f"<div style='flex:1;overflow:visible'>{_svg}</div>"
             f"<span style='font-size:0.72rem;color:{P_GHOST};white-space:nowrap'>"
             f"{int(_mid/1e6):.0f} Mb / {int(_chrom_len/1e6):.0f} Mb</span>"
             f"</div>",
