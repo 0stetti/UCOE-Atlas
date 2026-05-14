@@ -1408,67 +1408,56 @@ elif page == "Candidate Detail":
         _chrom     = cand["chrom"]
         _chrom_len = _CHROM_SIZES.get(_chrom, 200_000_000)
         _mid       = (int(cand["start"]) + int(cand["end"])) / 2
-        # SVG coordinate system: viewBox 0 0 900 56
-        # chromosome body: y=8 to y=48 (height=40), center y=28
-        _W, _T, _B, _CY = 900, 8, 48, 28  # width, top, bottom, center-y
+        # SVG coordinate system: viewBox 0 0 500 52
+        # Chromosome constrained to 500px wide so aspect ratio stays visible (~12:1)
+        _W, _T, _B, _CY = 500, 4, 44, 24  # width, top, bottom, center-y
         _R  = 20                            # end radius (semicircle caps)
         _lx = int(_mid / _chrom_len * _W)
-        _lw = max(5, int((int(cand["end"]) - int(cand["start"])) / _chrom_len * _W))
         _cx = int(_CEN_PCT.get(_chrom, 40) / 100 * _W)  # centromere center x
-        _cw = 24    # centromere half-width (transition zone)
-        # Constriction: pinch to ±6px around center (85% constriction out of 40px height)
-        _ct = _CY - 6   # constricted top (near center)
-        _cb = _CY + 6   # constricted bottom (near center)
-        # Single continuous SVG path: rounded telomere caps + hourglass centromere
+        _cw = 14    # centromere half-width
+        # Constriction: pinch top/bottom to within 2px of center → dramatic hourglass
+        _ct = _CY - 2   # constricted top y (bezier control, near center)
+        _cb = _CY + 2   # constricted bottom y
+        # Main chromosome outline — single continuous path
         _d = (
-            f"M 0,{_CY} "
-            f"Q 0,{_T} {_R},{_T} "
-            f"L {_cx-_cw},{_T} "
-            f"Q {_cx},{_ct} {_cx+_cw},{_T} "
-            f"L {_W-_R},{_T} "
-            f"Q {_W},{_T} {_W},{_CY} "
+            f"M 0,{_CY} Q 0,{_T} {_R},{_T} "
+            f"L {_cx-_cw},{_T} Q {_cx},{_ct} {_cx+_cw},{_T} "
+            f"L {_W-_R},{_T} Q {_W},{_T} {_W},{_CY} "
             f"Q {_W},{_B} {_W-_R},{_B} "
-            f"L {_cx+_cw},{_B} "
-            f"Q {_cx},{_cb} {_cx-_cw},{_B} "
-            f"L {_R},{_B} "
-            f"Q 0,{_B} 0,{_CY} Z"
+            f"L {_cx+_cw},{_B} Q {_cx},{_cb} {_cx-_cw},{_B} "
+            f"L {_R},{_B} Q 0,{_B} 0,{_CY} Z"
         )
-        # p arm is left of centromere (lighter), q arm is right (base color)
+        # Centromere region path — overlay on top of main body (no clipPath needed)
+        # Traces exactly the same hourglass curves as the main path in the centromere zone
+        _cen_d = (
+            f"M {_cx-_cw},{_T} Q {_cx},{_ct} {_cx+_cw},{_T} "
+            f"L {_cx+_cw},{_B} Q {_cx},{_cb} {_cx-_cw},{_B} Z"
+        )
+        # Locus position in 500px coordinate
+        _lx_pct = _mid / _chrom_len
         _svg = (
             f'<svg viewBox="0 0 {_W} 56" xmlns="http://www.w3.org/2000/svg" '
-            f'style="width:100%;height:40px;display:block">'
-            # Defs: clip to chromosome shape + gradient
-            f'<defs>'
-            f'<clipPath id="chrom-clip"><path d="{_d}"/></clipPath>'
-            f'<linearGradient id="parm" x1="0" y1="0" x2="0" y2="1">'
-            f'<stop offset="0%" stop-color="#C8CDD4"/>'
-            f'<stop offset="100%" stop-color="#B0B6BF"/>'
-            f'</linearGradient>'
-            f'<linearGradient id="qarm" x1="0" y1="0" x2="0" y2="1">'
-            f'<stop offset="0%" stop-color="#B8BEC6"/>'
-            f'<stop offset="100%" stop-color="#A0A7B0"/>'
-            f'</linearGradient>'
-            f'</defs>'
-            # q arm (full body background, darker)
-            f'<path d="{_d}" fill="url(#qarm)"/>'
-            # p arm overlay (left of centromere, lighter)
-            f'<rect x="0" y="0" width="{_cx}" height="56" fill="url(#parm)" clip-path="url(#chrom-clip)"/>'
-            # Centromere constriction: dark waist band
-            f'<rect x="{_cx-_cw}" y="0" width="{2*_cw}" height="56" '
-            f'fill="#8E949D" clip-path="url(#chrom-clip)"/>'
-            # Locus marker: bright aqua triangle below chromosome
-            f'<polygon points="{_lx},{_B+2} {_lx-5},{_B+10} {_lx+5},{_B+10}" fill="{P_AQUA}"/>'
+            f'style="width:100%;height:44px;display:block;overflow:visible">'
+            # p arm (lighter gray)
+            f'<path d="{_d}" fill="#BEC4CC" stroke="#9CA3AF" stroke-width="0.8"/>'
+            # q arm overlay (darker, right of centromere) — simple rect-within-shape trick:
+            # draw a darker rect from centromere to right end, visually distinct
+            f'<rect x="{_cx+_cw}" y="{_T}" width="{_W-_R-(_cx+_cw)}" height="{_B-_T}" fill="#A8B0B9" opacity="0.5"/>'
+            # Centromere hourglass band (darker)
+            f'<path d="{_cen_d}" fill="#7B8390"/>'
+            # Locus triangle pointer (aqua, below chromosome)
+            f'<polygon points="{_lx},{_B+2} {_lx-6},{_B+12} {_lx+6},{_B+12}" fill="{P_AQUA}"/>'
             f'</svg>'
         )
         st.markdown(
-            f"<div style='display:flex;align-items:center;gap:14px;margin-bottom:6px;"
-            f"padding:10px 14px;background:{P_BG_SUB};border:1px solid {P_RULE};"
-            f"border-radius:4px;overflow:visible'>"
+            f"<div style='display:inline-flex;align-items:center;gap:14px;margin-bottom:6px;"
+            f"padding:10px 16px;background:{P_BG_SUB};border:1px solid {P_RULE};"
+            f"border-radius:6px;overflow:visible;max-width:580px'>"
             f"<span style='font-size:0.78rem;font-weight:600;color:{P_SLATE};"
-            f"white-space:nowrap;min-width:38px'>{_chrom}</span>"
-            f"<div style='flex:1;overflow:visible'>{_svg}</div>"
+            f"white-space:nowrap;min-width:34px'>{_chrom}</span>"
+            f"<div style='width:420px;min-width:420px;overflow:visible'>{_svg}</div>"
             f"<span style='font-size:0.72rem;color:{P_GHOST};white-space:nowrap'>"
-            f"{int(_mid/1e6):.0f} Mb / {int(_chrom_len/1e6):.0f} Mb</span>"
+            f"{int(_mid/1e6):.0f} / {int(_chrom_len/1e6):.0f} Mb</span>"
             f"</div>",
             unsafe_allow_html=True,
         )
